@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, differenceInHours } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { SESSION_TYPE_COLORS, STATUS_LABELS, STATUS_COLORS, AppointmentType, AppointmentStatus } from "@/lib/agenda-constants";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+
+const LOOSE_SESSION_PRICES: Record<string, number> = {
+  medical_diagnosis: 200,
+  physio_diagnosis: 150,
+};
 
 interface AppointmentDetailPanelProps {
   open: boolean;
@@ -19,6 +24,8 @@ interface AppointmentDetailPanelProps {
     type: AppointmentType;
     status: AppointmentStatus;
     notes: string | null;
+    package_id: string | null;
+    client_id: string;
     clients: { name: string } | null;
     professionals: { name: string; type: string } | null;
   } | null;
@@ -28,6 +35,49 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
   const queryClient = useQueryClient();
   const [noShowDialog, setNoShowDialog] = useState(false);
 
+  const processRevenue = async (appointmentId: string, clientId: string, packageId: string | null, appointmentType: string) => {
+    let revenueAmount = 0;
+
+    if (packageId) {
+      // Fetch package to calculate per-session amount
+      const { data: pkg, error: pkgErr } = await supabase
+        .from("packages")
+        .select("*")
+        .eq("id", packageId)
+        .single();
+      if (pkgErr) throw pkgErr;
+
+      revenueAmount = Number(pkg.total_paid) / pkg.total_sessions;
+
+      // Increment sessions_used
+      const newUsed = pkg.sessions_used + 1;
+      const updates: any = { sessions_used: newUsed };
+      if (newUsed >= pkg.total_sessions) {
+        updates.status = "completed";
+      }
+      const { error: updErr } = await supabase.from("packages").update(updates).eq("id", packageId);
+      if (updErr) throw updErr;
+    } else {
+      // Loose session
+      revenueAmount = LOOSE_SESSION_PRICES[appointmentType] || 0;
+    }
+
+    // Update appointment revenue_amount
+    await supabase.from("appointments").update({ revenue_amount: revenueAmount }).eq("id", appointmentId);
+
+    // Create revenue entry
+    if (revenueAmount > 0) {
+      const { error: revErr } = await supabase.from("revenue_entries").insert({
+        appointment_id: appointmentId,
+        client_id: clientId,
+        package_id: packageId,
+        amount: revenueAmount,
+        recognized_at: new Date().toISOString(),
+      });
+      if (revErr) throw revErr;
+    }
+  };
+
   const updateStatus = useMutation({
     mutationFn: async (newStatus: AppointmentStatus) => {
       if (!appointment) return;
@@ -36,10 +86,17 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
         .update({ status: newStatus })
         .eq("id", appointment.id);
       if (error) throw error;
+
+      // Revenue logic: only when marking as done
+      if (newStatus === "done") {
+        await processRevenue(appointment.id, appointment.client_id, appointment.package_id, appointment.type);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["packages"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue"] });
       toast.success("Estado actualizado");
     },
     onError: (err: any) => toast.error(err.message),
@@ -56,10 +113,8 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
   const handleNoShowResponse = (cancelledWithNotice: boolean) => {
     setNoShowDialog(false);
     if (cancelledWithNotice) {
-      // Cancelled with 24h+ notice → mark as no_show
       updateStatus.mutate("no_show");
     } else {
-      // Did NOT cancel with notice → counts as done
       updateStatus.mutate("done");
       toast.info("La sesión cuenta como realizada (sin aviso previo de 24h)");
     }
@@ -85,19 +140,14 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
           </SheetHeader>
 
           <div className="space-y-5 mt-6">
-            {/* Client */}
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Cliente</p>
               <p className="text-lg font-semibold">{(appointment.clients as any)?.name || "—"}</p>
             </div>
-
-            {/* Professional */}
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Profesional</p>
               <p className="font-medium">{(appointment.professionals as any)?.name || "Sin asignar"}</p>
             </div>
-
-            {/* Type */}
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Tipo de sesión</p>
               <div className="flex items-center gap-2 mt-1">
@@ -105,8 +155,6 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
                 <span className="font-medium">{typeConfig.label}</span>
               </div>
             </div>
-
-            {/* Schedule */}
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Horario</p>
               <p className="font-medium">
@@ -114,24 +162,18 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
                 {format(new Date(appointment.end_time), "HH:mm")}
               </p>
             </div>
-
-            {/* Current status */}
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Estado actual</p>
               <span className={`inline-block mt-1 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[appointment.status]}`}>
                 {STATUS_LABELS[appointment.status]}
               </span>
             </div>
-
-            {/* Notes */}
             {appointment.notes && (
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Notas</p>
                 <p className="text-sm mt-1">{appointment.notes}</p>
               </div>
             )}
-
-            {/* Actions */}
             {appointment.status !== "done" && appointment.status !== "cancelled" && (
               <div className="space-y-2 pt-4 border-t">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Cambiar estado</p>
@@ -156,7 +198,6 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
         </SheetContent>
       </Sheet>
 
-      {/* No-show dialog */}
       <Dialog open={noShowDialog} onOpenChange={setNoShowDialog}>
         <DialogContent>
           <DialogHeader>
