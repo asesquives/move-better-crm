@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfWeek, addDays, format } from "date-fns";
+import { addDays, format } from "date-fns";
 
 export function useWeekAppointments(weekStart: Date) {
   const weekEnd = addDays(weekStart, 6);
@@ -58,7 +58,7 @@ export function useClientPackages(clientId: string | null, sessionType: string |
     queryKey: ["client-packages", clientId, sessionType],
     queryFn: async () => {
       if (!clientId) return [];
-      let query = supabase
+      const query = supabase
         .from("packages")
         .select("*")
         .eq("client_id", clientId)
@@ -86,5 +86,45 @@ export function useAvailabilityBlocks(professionalId: string | null, date: strin
       return data;
     },
     enabled: !!professionalId && !!date,
+  });
+}
+
+/**
+ * Real available slots for an evaluator on a given date.
+ * Returns availability_blocks minus already-booked appointments.
+ */
+export function useRealAvailableSlots(professionalId: string | null, date: string | null) {
+  const { data: blocks } = useAvailabilityBlocks(professionalId, date);
+
+  return useQuery({
+    queryKey: ["real-available-slots", professionalId, date],
+    queryFn: async () => {
+      if (!professionalId || !date || !blocks) return [];
+
+      // Fetch existing appointments for this professional on this date
+      const { data: appointments, error } = await supabase
+        .from("appointments")
+        .select("start_time, end_time")
+        .eq("professional_id", professionalId)
+        .neq("status", "cancelled")
+        .gte("start_time", date + "T00:00:00")
+        .lte("start_time", date + "T23:59:59");
+      if (error) throw error;
+
+      // Subtract booked times from blocks
+      const bookedRanges = (appointments || []).map((a) => ({
+        start: format(new Date(a.start_time), "HH:mm"),
+        end: format(new Date(a.end_time), "HH:mm"),
+      }));
+
+      // Return blocks with real availability info
+      return blocks.map((block) => {
+        const isOccupied = bookedRanges.some(
+          (b) => b.start < block.end_time.slice(0, 5) && b.end > block.start_time.slice(0, 5)
+        );
+        return { ...block, isOccupied };
+      });
+    },
+    enabled: !!professionalId && !!date && !!blocks && blocks.length > 0,
   });
 }
