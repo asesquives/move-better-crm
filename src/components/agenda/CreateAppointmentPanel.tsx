@@ -13,6 +13,7 @@ import { SESSION_TYPE_COLORS, PACKAGE_TYPE_MAP, AppointmentType } from "@/lib/ag
 import { toast } from "sonner";
 import { AlertTriangle, Info, Search } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { isPeruHoliday, getHolidayName } from "@/lib/peru-holidays";
 
 interface CreateAppointmentPanelProps {
   open: boolean;
@@ -92,6 +93,11 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
     mutationFn: async () => {
       if (!selectedClientId || !professionalId || !date || !startTime || !endTime) {
         throw new Error("Completa todos los campos obligatorios");
+      }
+
+      // Holiday check
+      if (isPeruHoliday(date)) {
+        throw new Error(`No se pueden agendar citas en feriados (${getHolidayName(date)})`);
       }
 
       // Double booking check
