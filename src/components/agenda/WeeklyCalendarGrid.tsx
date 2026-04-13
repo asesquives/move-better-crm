@@ -1,5 +1,6 @@
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { SESSION_TYPE_COLORS, STATUS_LABELS, STATUS_COLORS, HOURS, AppointmentType, AppointmentStatus } from "@/lib/agenda-constants";
+import { isPeruHoliday, getHolidayName } from "@/lib/peru-holidays";
 
 interface CalendarAppointment {
   id: string;
@@ -34,20 +35,22 @@ export function WeeklyCalendarGrid({ weekDays, appointments, onSlotClick, onAppo
       {/* Header */}
       <div className="grid grid-cols-[60px_repeat(6,1fr)] border-b">
         <div className="p-2 text-xs text-muted-foreground border-r" />
-        {weekDays.map((day) => (
-          <div key={day.toISOString()} className="p-2 text-center border-r last:border-r-0">
-            <p className="text-xs text-muted-foreground uppercase">
-              {format(day, "EEE", { locale: undefined })}
-            </p>
-            <p className={`text-sm font-semibold ${
-              format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-                ? "text-primary"
-                : ""
-            }`}>
-              {format(day, "d")}
-            </p>
-          </div>
-        ))}
+        {weekDays.map((day) => {
+          const dateStr = format(day, "yyyy-MM-dd");
+          const holiday = isPeruHoliday(dateStr);
+          const isToday = isSameDay(day, new Date());
+          return (
+            <div key={day.toISOString()} className={`p-2 text-center border-r last:border-r-0 ${holiday ? "bg-red-50" : ""}`}>
+              <p className={`text-xs uppercase ${holiday ? "text-red-500" : "text-muted-foreground"}`}>
+                {format(day, "EEE", { locale: undefined })}
+              </p>
+              <p className={`text-sm font-semibold ${isToday ? "text-primary" : holiday ? "text-red-500" : ""}`}>
+                {format(day, "d")}
+              </p>
+              {holiday && <p className="text-[9px] text-red-400 mt-0.5">{getHolidayName(dateStr)}</p>}
+            </div>
+          );
+        })}
       </div>
 
       {/* Time grid */}
@@ -58,12 +61,19 @@ export function WeeklyCalendarGrid({ weekDays, appointments, onSlotClick, onAppo
               {`${hour.toString().padStart(2, "0")}:00`}
             </div>
             {weekDays.map((day) => {
+              const dateStr = format(day, "yyyy-MM-dd");
+              const holiday = isPeruHoliday(dateStr);
               const slotAppts = getAppointmentsForSlot(day, hour);
               return (
                 <div
                   key={`${day.toISOString()}-${hour}`}
-                  className="border-r last:border-r-0 p-0.5 cursor-pointer hover:bg-muted/50 transition-colors relative"
+                  className={`border-r last:border-r-0 p-0.5 transition-colors relative ${
+                    holiday
+                      ? "bg-red-50/50 cursor-not-allowed"
+                      : "cursor-pointer hover:bg-muted/50"
+                  }`}
                   onClick={(e) => {
+                    if (holiday) return;
                     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
                     onSlotClick(day, hour);
                   }}
@@ -78,7 +88,7 @@ export function WeeklyCalendarGrid({ weekDays, appointments, onSlotClick, onAppo
                           e.stopPropagation();
                           onAppointmentClick(apt);
                         }}
-                        className={`rounded px-1.5 py-1 text-[10px] leading-tight cursor-pointer mb-0.5 border-l-[3px] bg-popover shadow-sm hover:shadow-md transition-shadow`}
+                        className="rounded px-1.5 py-1 text-[10px] leading-tight cursor-pointer mb-0.5 border-l-[3px] bg-popover shadow-sm hover:shadow-md transition-shadow"
                         style={{ borderLeftColor: getTypeColor(apt.type) }}
                       >
                         <p className="font-semibold truncate">{(apt.clients as any)?.name || "—"}</p>
