@@ -1,85 +1,105 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { useState, useMemo } from "react";
+import { startOfWeek, addDays, subDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { useWeekAppointments } from "@/hooks/useAgendaData";
+import { WeeklyCalendarGrid } from "@/components/agenda/WeeklyCalendarGrid";
+import { CreateAppointmentPanel } from "@/components/agenda/CreateAppointmentPanel";
+import { AppointmentDetailPanel } from "@/components/agenda/AppointmentDetailPanel";
 
 export default function AgendaPage() {
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [createOpen, setCreateOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
+  const [selectedSlotHour, setSelectedSlotHour] = useState<number | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
 
-  const dayStart = new Date(selectedDate + "T00:00:00").toISOString();
-  const dayEnd = new Date(selectedDate + "T23:59:59").toISOString();
+  // Week starts on Monday
+  const weekStart = useMemo(() => startOfWeek(currentDate, { weekStartsOn: 1 }), [currentDate]);
+  const weekDays = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(weekStart, i)), [weekStart]); // Mon-Sat
 
-  const { data: appointments, isLoading } = useQuery({
-    queryKey: ["appointments", selectedDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*, clients(name), professionals(name)")
-        .gte("start_time", dayStart)
-        .lte("start_time", dayEnd)
-        .order("start_time");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: appointments, isLoading } = useWeekAppointments(weekStart);
 
-  const statusColors: Record<string, string> = {
-    scheduled: "bg-blue-100 text-blue-700",
-    confirmed: "bg-green-100 text-green-700",
-    done: "bg-muted text-muted-foreground",
-    cancelled: "bg-red-100 text-red-700",
-    no_show: "bg-orange-100 text-orange-700",
+  const handleSlotClick = (date: Date, hour: number) => {
+    setSelectedSlotDate(date);
+    setSelectedSlotHour(hour);
+    setCreateOpen(true);
   };
 
+  const handleAppointmentClick = (appointment: any) => {
+    setSelectedAppointment(appointment);
+    setDetailOpen(true);
+  };
+
+  const goToPrevWeek = () => setCurrentDate((d) => subDays(d, 7));
+  const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7));
+  const goToToday = () => setCurrentDate(new Date());
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Agenda</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Agenda</h1>
+          <p className="text-sm text-muted-foreground capitalize">
+            {format(weekDays[0], "d MMM", { locale: es })} – {format(weekDays[5], "d MMM yyyy", { locale: es })}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-auto"
-          />
+          <Button variant="outline" size="sm" onClick={goToPrevWeek}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToToday}>
+            Hoy
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToNextWeek}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button size="sm" onClick={() => {
+            setSelectedSlotDate(new Date());
+            setSelectedSlotHour(new Date().getHours());
+            setCreateOpen(true);
+          }}>
+            <Plus className="h-4 w-4 mr-1" /> Nueva cita
+          </Button>
         </div>
       </div>
 
-      <p className="text-muted-foreground capitalize">
-        {format(new Date(selectedDate + "T12:00:00"), "EEEE, d 'de' MMMM yyyy", { locale: es })}
-      </p>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />Diag. médico</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-sky-400" />Diag. fisio</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />Rehabilitación</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" />Prehabilitación</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-400" />Recuperación</span>
+      </div>
 
+      {/* Calendar */}
       {isLoading ? (
-        <p className="text-muted-foreground">Cargando...</p>
-      ) : !appointments?.length ? (
-        <div className="bg-card rounded-lg border p-8 text-center">
-          <p className="text-muted-foreground">No hay citas para este día</p>
-        </div>
+        <div className="flex items-center justify-center h-64 text-muted-foreground">Cargando...</div>
       ) : (
-        <div className="space-y-2">
-          {appointments.map((apt) => (
-            <div key={apt.id} className="bg-card rounded-lg border p-4 flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="font-medium">{(apt.clients as any)?.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {format(new Date(apt.start_time), "HH:mm")} - {format(new Date(apt.end_time), "HH:mm")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {(apt.professionals as any)?.name || "Sin asignar"} · {apt.type.replace("_", " ")}
-                </p>
-              </div>
-              <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[apt.status] || "bg-muted text-muted-foreground"}`}>
-                {apt.status}
-              </span>
-            </div>
-          ))}
-        </div>
+        <WeeklyCalendarGrid
+          weekDays={weekDays}
+          appointments={appointments || []}
+          onSlotClick={handleSlotClick}
+          onAppointmentClick={handleAppointmentClick}
+        />
       )}
+
+      {/* Panels */}
+      <CreateAppointmentPanel
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultDate={selectedSlotDate}
+        defaultHour={selectedSlotHour}
+      />
+      <AppointmentDetailPanel
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        appointment={selectedAppointment}
+      />
     </div>
   );
 }
