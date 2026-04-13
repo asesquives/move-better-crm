@@ -13,6 +13,7 @@ import { SESSION_TYPE_COLORS, PACKAGE_TYPE_MAP, AppointmentType } from "@/lib/ag
 import { toast } from "sonner";
 import { AlertTriangle, Info, Search } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { isPeruHoliday, getHolidayName } from "@/lib/peru-holidays";
 
 interface CreateAppointmentPanelProps {
   open: boolean;
