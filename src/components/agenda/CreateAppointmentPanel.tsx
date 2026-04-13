@@ -119,7 +119,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       const { error } = await supabase.from("appointments").insert({
         client_id: selectedClientId,
         professional_id: professionalId,
-        package_id: packageId || null,
+        package_id: packageId && packageId !== "none" ? packageId : null,
         start_time: startISO,
         end_time: endISO,
         type: sessionType,
