@@ -95,6 +95,11 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
         throw new Error("Completa todos los campos obligatorios");
       }
 
+      // Holiday check
+      if (isPeruHoliday(date)) {
+        throw new Error(`No se pueden agendar citas en feriados (${getHolidayName(date)})`);
+      }
+
       // Double booking check
       const startISO = new Date(`${date}T${startTime}:00`).toISOString();
       const endISO = new Date(`${date}T${endTime}:00`).toISOString();
