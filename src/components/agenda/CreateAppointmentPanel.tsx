@@ -100,23 +100,52 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   // Selected professional info
   const selectedProfessional = professionals?.find((p) => p.id === professionalId);
 
-  // Check evaluator availability
+  // Compute slot grid based on professional type
+  const slots = useMemo(() => {
+    if (!selectedProfessional || !date) return [];
+    const allHours = Array.from({ length: 14 }, (_, i) => i + 7); // 7..20
+
+    let windowHours: number[] = [];
+    if (selectedProfessional.type === "physio") {
+      windowHours = allHours;
+    } else {
+      if (!availBlocks || availBlocks.length === 0) return [];
+      windowHours = allHours.filter((h) => {
+        const slotStart = `${h.toString().padStart(2, "0")}:00:00`;
+        const slotEnd = `${(h + 1).toString().padStart(2, "0")}:00:00`;
+        return availBlocks.some(
+          (b) => b.start_time <= slotStart && b.end_time >= slotEnd
+        );
+      });
+    }
+
+    const booked = (dayAppointments || []).map((a) => ({
+      start: format(new Date(a.start_time), "HH:mm"),
+      end: format(new Date(a.end_time), "HH:mm"),
+    }));
+
+    return windowHours.map((h) => {
+      const start = `${h.toString().padStart(2, "0")}:00`;
+      const end = `${(h + 1).toString().padStart(2, "0")}:00`;
+      const occupied = booked.some((b) => b.start < end && b.end > start);
+      return { hour: h, start, end, occupied };
+    });
+  }, [selectedProfessional, date, availBlocks, dayAppointments]);
+
+  // Reset selected slot when professional or date changes
+  useEffect(() => {
+    setStartTime("");
+    setEndTime("");
+  }, [professionalId, date]);
+
+  // Evaluator-no-blocks message
   useEffect(() => {
     setAvailError("");
-    if (!selectedProfessional || selectedProfessional.type !== "evaluator" || !date || !startTime) return;
+    if (!selectedProfessional || selectedProfessional.type !== "evaluator" || !date) return;
     if (!availBlocks || availBlocks.length === 0) {
       setAvailError("Este evaluador no tiene bloques de disponibilidad para esta fecha.");
-      return;
     }
-    const slotStart = startTime;
-    const slotEnd = endTime;
-    const isWithinBlock = availBlocks.some(
-      (block) => block.start_time <= slotStart && block.end_time >= slotEnd
-    );
-    if (!isWithinBlock) {
-      setAvailError("El horario seleccionado no está dentro de la disponibilidad del evaluador.");
-    }
-  }, [selectedProfessional, availBlocks, date, startTime, endTime]);
+  }, [selectedProfessional, availBlocks, date]);
 
   const createAppointment = useMutation({
     mutationFn: async () => {
