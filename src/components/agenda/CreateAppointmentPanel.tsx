@@ -27,6 +27,11 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClientName, setSelectedClientName] = useState("");
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientNotes, setNewClientNotes] = useState("");
   const [professionalId, setProfessionalId] = useState("");
   const [sessionType, setSessionType] = useState<AppointmentType>("rehabilitation");
   const [date, setDate] = useState("");
