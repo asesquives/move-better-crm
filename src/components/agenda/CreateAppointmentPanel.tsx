@@ -27,6 +27,11 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClientName, setSelectedClientName] = useState("");
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientNotes, setNewClientNotes] = useState("");
   const [professionalId, setProfessionalId] = useState("");
   const [sessionType, setSessionType] = useState<AppointmentType>("rehabilitation");
   const [date, setDate] = useState("");
@@ -51,6 +56,11 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       setSelectedClientId(null);
       setSelectedClientName("");
       setClientSearch("");
+      setShowNewClientForm(false);
+      setNewClientName("");
+      setNewClientPhone("");
+      setNewClientEmail("");
+      setNewClientNotes("");
       setProfessionalId("");
       setSessionType("rehabilitation");
       setPackageId("");
@@ -91,7 +101,30 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
 
   const createAppointment = useMutation({
     mutationFn: async () => {
-      if (!selectedClientId || !professionalId || !date || !startTime || !endTime) {
+      let clientIdToUse = selectedClientId;
+      let createdNewClient = false;
+
+      // Create new client first if inline form is shown
+      if (showNewClientForm) {
+        if (!newClientName.trim() || !newClientPhone.trim()) {
+          throw new Error("Nombre y teléfono del nuevo cliente son obligatorios");
+        }
+        const { data: newClient, error: clientErr } = await supabase
+          .from("clients")
+          .insert({
+            name: newClientName.trim(),
+            phone: newClientPhone.trim(),
+            email: newClientEmail.trim() || null,
+            notes: newClientNotes.trim() || null,
+          })
+          .select()
+          .single();
+        if (clientErr) throw clientErr;
+        clientIdToUse = newClient.id;
+        createdNewClient = true;
+      }
+
+      if (!clientIdToUse || !professionalId || !date || !startTime || !endTime) {
         throw new Error("Completa todos los campos obligatorios");
       }
 
@@ -117,7 +150,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       }
 
       const { error } = await supabase.from("appointments").insert({
-        client_id: selectedClientId,
+        client_id: clientIdToUse,
         professional_id: professionalId,
         package_id: packageId && packageId !== "none" ? packageId : null,
         start_time: startISO,
@@ -126,12 +159,15 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
         notes: notes || null,
       });
       if (error) throw error;
+
+      return { createdNewClient };
     },
-    onSuccess: () => {
+    onSuccess: ({ createdNewClient }) => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
-      toast.success("Cita creada exitosamente");
+      toast.success(createdNewClient ? "Cliente creado y cita agendada" : "Cita creada exitosamente");
     },
     onError: (err: any) => {
       if (err.message === "DOUBLE_BOOKING") {
@@ -179,6 +215,62 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
                   Cambiar
                 </Button>
               </div>
+            ) : showNewClientForm ? (
+              <div className="space-y-3 border rounded-md p-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Nuevo cliente</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowNewClientForm(false);
+                      setNewClientName("");
+                      setNewClientPhone("");
+                      setNewClientEmail("");
+                      setNewClientNotes("");
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Nombre completo *</Label>
+                  <Input
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Nombre completo"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Teléfono *</Label>
+                  <Input
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    placeholder="Teléfono"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    value={newClientEmail}
+                    onChange={(e) => setNewClientEmail(e.target.value)}
+                    placeholder="email@ejemplo.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Notas</Label>
+                  <Textarea
+                    value={newClientNotes}
+                    onChange={(e) => setNewClientNotes(e.target.value)}
+                    placeholder="Observaciones..."
+                    rows={2}
+                  />
+                </div>
+              </div>
             ) : (
               <div className="space-y-1">
                 <div className="relative">
@@ -208,6 +300,18 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
                       </button>
                     ))}
                   </div>
+                )}
+                {clientSearch.trim().length >= 2 && (!searchResults || searchResults.length === 0) && (
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm border rounded-md bg-popover hover:bg-muted transition-colors text-primary font-medium"
+                    onClick={() => {
+                      setNewClientName(clientSearch.trim());
+                      setShowNewClientForm(true);
+                    }}
+                  >
+                    + Crear cliente "{clientSearch.trim()}"
+                  </button>
                 )}
               </div>
             )}
