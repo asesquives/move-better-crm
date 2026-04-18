@@ -48,6 +48,24 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   const { data: clientPackages } = useClientPackages(selectedClientId, sessionType);
   const { data: availBlocks } = useAvailabilityBlocks(professionalId, date);
 
+  // Fetch existing appointments for selected professional + date
+  const { data: dayAppointments } = useQuery({
+    queryKey: ["day-appointments", professionalId, date],
+    queryFn: async () => {
+      if (!professionalId || !date) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("start_time, end_time, status")
+        .eq("professional_id", professionalId)
+        .neq("status", "cancelled")
+        .gte("start_time", `${date}T00:00:00`)
+        .lte("start_time", `${date}T23:59:59`);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!professionalId && !!date,
+  });
+
   // Reset form when panel opens with defaults
   useEffect(() => {
     if (open && defaultDate) {
