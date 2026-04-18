@@ -56,6 +56,11 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       setSelectedClientId(null);
       setSelectedClientName("");
       setClientSearch("");
+      setShowNewClientForm(false);
+      setNewClientName("");
+      setNewClientPhone("");
+      setNewClientEmail("");
+      setNewClientNotes("");
       setProfessionalId("");
       setSessionType("rehabilitation");
       setPackageId("");
