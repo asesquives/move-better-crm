@@ -279,11 +279,150 @@ export default function EquipoPage() {
                     onCheckedChange={(checked) => toggleActive.mutate({ id: p.id, is_active: checked })}
                   />
                 </div>
+                <Button variant="ghost" size="icon" onClick={() => openEdit(p)} aria-label="Editar">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDeleting(p)}
+                  aria-label="Eliminar"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Edit dialog */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar profesional</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateProfessional.mutate();
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label>Nombre *</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label>Tipo</Label>
+              <Select
+                value={editForm.type}
+                onValueChange={(v) => setEditForm({ ...editForm, type: v as ProfessionalType })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="physio">Fisioterapeuta</SelectItem>
+                  <SelectItem value="evaluator">Evaluador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>Estado</Label>
+                <p className="text-xs text-muted-foreground">
+                  {editForm.is_active ? "Activo" : "Inactivo"}
+                </p>
+              </div>
+              <Switch
+                checked={editForm.is_active}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, is_active: checked })}
+              />
+            </div>
+
+            {editForm.type === "physio" && (
+              <>
+                <div>
+                  <Label>Días de atención</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {DAYS.map((day) => (
+                      <Button
+                        key={day}
+                        type="button"
+                        variant={editForm.schedule_days.includes(day) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleEditDay(day)}
+                      >
+                        {day.slice(0, 3)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Hora inicio</Label>
+                    <Input
+                      type="time"
+                      value={editForm.schedule_start}
+                      onChange={(e) => setEditForm({ ...editForm, schedule_start: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Hora fin</Label>
+                    <Input
+                      type="time"
+                      value={editForm.schedule_end}
+                      onChange={(e) => setEditForm({ ...editForm, schedule_end: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {editForm.type === "evaluator" && (
+              <div className="bg-muted/30 rounded-lg p-3 text-sm text-muted-foreground">
+                Los evaluadores cargan su disponibilidad semanalmente desde el módulo de Disponibilidad.
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={updateProfessional.isPending}>
+              Guardar cambios
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar profesional</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar a {deleting?.name}? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProfessional.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteProfessional.mutate();
+              }}
+              disabled={deleteProfessional.isPending}
+              style={{ backgroundColor: "#CC2222" }}
+              className="text-white hover:opacity-90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
