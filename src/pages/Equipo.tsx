@@ -7,10 +7,22 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Calendar, Clock } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Calendar, Clock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import type { Database } from "@/integrations/supabase/types";
+
+type Professional = Database["public"]["Tables"]["professionals"]["Row"];
 
 type ProfessionalType = Database["public"]["Enums"]["professional_type"];
 
@@ -67,8 +79,89 @@ export default function EquipoPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const [editing, setEditing] = useState<Professional | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    type: "physio" as ProfessionalType,
+    is_active: true,
+    schedule_days: [] as string[],
+    schedule_start: "08:00",
+    schedule_end: "17:00",
+  });
+  const [deleting, setDeleting] = useState<Professional | null>(null);
+
+  const openEdit = (p: Professional) => {
+    setEditing(p);
+    setEditForm({
+      name: p.name,
+      type: p.type,
+      is_active: p.is_active,
+      schedule_days: [],
+      schedule_start: "08:00",
+      schedule_end: "17:00",
+    });
+  };
+
+  const updateProfessional = useMutation({
+    mutationFn: async () => {
+      if (!editing) return;
+      const { error } = await supabase
+        .from("professionals")
+        .update({ name: editForm.name, type: editForm.type, is_active: editForm.is_active })
+        .eq("id", editing.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["professionals"] });
+      setEditing(null);
+      toast.success("Profesional actualizado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteProfessional = useMutation({
+    mutationFn: async () => {
+      if (!deleting) return;
+      // Check for future scheduled/confirmed appointments
+      const nowIso = new Date().toISOString();
+      const { data: future, error: checkErr } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("professional_id", deleting.id)
+        .in("status", ["scheduled", "confirmed"])
+        .gte("start_time", nowIso)
+        .limit(1);
+      if (checkErr) throw checkErr;
+      if (future && future.length > 0) {
+        throw new Error(
+          `No puedes eliminar a ${deleting.name} porque tiene citas pendientes. Primero cancela o reasigna sus citas.`,
+        );
+      }
+      const { error } = await supabase.from("professionals").delete().eq("id", deleting.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["professionals"] });
+      setDeleting(null);
+      toast.success("Profesional eliminado");
+    },
+    onError: (e: any) => {
+      toast.error(e.message);
+      setDeleting(null);
+    },
+  });
+
   const toggleDay = (day: string) => {
     setForm((f) => ({
+      ...f,
+      schedule_days: f.schedule_days.includes(day)
+        ? f.schedule_days.filter((d) => d !== day)
+        : [...f.schedule_days, day],
+    }));
+  };
+
+  const toggleEditDay = (day: string) => {
+    setEditForm((f) => ({
       ...f,
       schedule_days: f.schedule_days.includes(day)
         ? f.schedule_days.filter((d) => d !== day)
@@ -186,11 +279,150 @@ export default function EquipoPage() {
                     onCheckedChange={(checked) => toggleActive.mutate({ id: p.id, is_active: checked })}
                   />
                 </div>
+                <Button variant="ghost" size="icon" onClick={() => openEdit(p)} aria-label="Editar">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDeleting(p)}
+                  aria-label="Eliminar"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Edit dialog */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar profesional</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateProfessional.mutate();
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label>Nombre *</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label>Tipo</Label>
+              <Select
+                value={editForm.type}
+                onValueChange={(v) => setEditForm({ ...editForm, type: v as ProfessionalType })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="physio">Fisioterapeuta</SelectItem>
+                  <SelectItem value="evaluator">Evaluador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>Estado</Label>
+                <p className="text-xs text-muted-foreground">
+                  {editForm.is_active ? "Activo" : "Inactivo"}
+                </p>
+              </div>
+              <Switch
+                checked={editForm.is_active}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, is_active: checked })}
+              />
+            </div>
+
+            {editForm.type === "physio" && (
+              <>
+                <div>
+                  <Label>Días de atención</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {DAYS.map((day) => (
+                      <Button
+                        key={day}
+                        type="button"
+                        variant={editForm.schedule_days.includes(day) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleEditDay(day)}
+                      >
+                        {day.slice(0, 3)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Hora inicio</Label>
+                    <Input
+                      type="time"
+                      value={editForm.schedule_start}
+                      onChange={(e) => setEditForm({ ...editForm, schedule_start: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Hora fin</Label>
+                    <Input
+                      type="time"
+                      value={editForm.schedule_end}
+                      onChange={(e) => setEditForm({ ...editForm, schedule_end: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {editForm.type === "evaluator" && (
+              <div className="bg-muted/30 rounded-lg p-3 text-sm text-muted-foreground">
+                Los evaluadores cargan su disponibilidad semanalmente desde el módulo de Disponibilidad.
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={updateProfessional.isPending}>
+              Guardar cambios
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar profesional</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar a {deleting?.name}? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProfessional.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteProfessional.mutate();
+              }}
+              disabled={deleteProfessional.isPending}
+              style={{ backgroundColor: "#CC2222" }}
+              className="text-white hover:opacity-90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
