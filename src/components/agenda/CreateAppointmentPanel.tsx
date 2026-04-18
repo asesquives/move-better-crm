@@ -215,6 +215,62 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
                   Cambiar
                 </Button>
               </div>
+            ) : showNewClientForm ? (
+              <div className="space-y-3 border rounded-md p-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Nuevo cliente</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowNewClientForm(false);
+                      setNewClientName("");
+                      setNewClientPhone("");
+                      setNewClientEmail("");
+                      setNewClientNotes("");
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Nombre completo *</Label>
+                  <Input
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Nombre completo"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Teléfono *</Label>
+                  <Input
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    placeholder="Teléfono"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    value={newClientEmail}
+                    onChange={(e) => setNewClientEmail(e.target.value)}
+                    placeholder="email@ejemplo.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Notas</Label>
+                  <Textarea
+                    value={newClientNotes}
+                    onChange={(e) => setNewClientNotes(e.target.value)}
+                    placeholder="Observaciones..."
+                    rows={2}
+                  />
+                </div>
+              </div>
             ) : (
               <div className="space-y-1">
                 <div className="relative">
@@ -244,6 +300,18 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
                       </button>
                     ))}
                   </div>
+                )}
+                {clientSearch.trim().length >= 2 && (!searchResults || searchResults.length === 0) && (
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm border rounded-md bg-popover hover:bg-muted transition-colors text-primary font-medium"
+                    onClick={() => {
+                      setNewClientName(clientSearch.trim());
+                      setShowNewClientForm(true);
+                    }}
+                  >
+                    + Crear cliente "{clientSearch.trim()}"
+                  </button>
                 )}
               </div>
             )}
