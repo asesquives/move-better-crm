@@ -503,7 +503,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones..." />
           </div>
 
-          <Button type="submit" className="w-full" disabled={createAppointment.isPending || !!availError}>
+          <Button type="submit" className="w-full" disabled={createAppointment.isPending || !!availError || !startTime}>
             {createAppointment.isPending ? "Guardando..." : "Crear cita"}
           </Button>
         </form>
