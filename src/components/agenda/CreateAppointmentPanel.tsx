@@ -406,21 +406,53 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             </Select>
           </div>
 
-          {/* Date & time */}
+          {/* Date */}
           <div className="space-y-2">
             <Label>Fecha *</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Available slots grid */}
+          {professionalId && date && (
             <div className="space-y-2">
-              <Label>Hora inicio *</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+              <Label>Horario disponible *</Label>
+              {slots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {selectedProfessional?.type === "evaluator"
+                    ? "Sin bloques de disponibilidad para esta fecha."
+                    : "Sin horarios disponibles."}
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {slots.map((s) => {
+                    const isSelected = startTime === s.start;
+                    return (
+                      <button
+                        key={s.start}
+                        type="button"
+                        disabled={s.occupied}
+                        onClick={() => {
+                          setStartTime(s.start);
+                          setEndTime(s.end);
+                        }}
+                        className={cn(
+                          "h-10 rounded-md text-sm font-medium border transition-colors",
+                          s.occupied &&
+                            "bg-muted text-muted-foreground border-border cursor-not-allowed",
+                          !s.occupied && !isSelected &&
+                            "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 hover:bg-emerald-500/25",
+                          isSelected &&
+                            "bg-[#CC2222] text-white border-[#CC2222] hover:bg-[#CC2222]"
+                        )}
+                      >
+                        {s.start}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>Hora fin *</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
-            </div>
-          </div>
+          )}
 
           {/* Double booking error */}
           {doubleBookError && (
