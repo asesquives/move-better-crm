@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addHours } from "date-fns";
+import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,24 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   const { data: clientPackages } = useClientPackages(selectedClientId, sessionType);
   const { data: availBlocks } = useAvailabilityBlocks(professionalId, date);
 
+  // Fetch existing appointments for selected professional + date
+  const { data: dayAppointments } = useQuery({
+    queryKey: ["day-appointments", professionalId, date],
+    queryFn: async () => {
+      if (!professionalId || !date) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("start_time, end_time, status")
+        .eq("professional_id", professionalId)
+        .neq("status", "cancelled")
+        .gte("start_time", `${date}T00:00:00`)
+        .lte("start_time", `${date}T23:59:59`);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!professionalId && !!date,
+  });
+
   // Reset form when panel opens with defaults
   useEffect(() => {
     if (open && defaultDate) {
@@ -81,23 +100,52 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   // Selected professional info
   const selectedProfessional = professionals?.find((p) => p.id === professionalId);
 
-  // Check evaluator availability
+  // Compute slot grid based on professional type
+  const slots = useMemo(() => {
+    if (!selectedProfessional || !date) return [];
+    const allHours = Array.from({ length: 14 }, (_, i) => i + 7); // 7..20
+
+    let windowHours: number[] = [];
+    if (selectedProfessional.type === "physio") {
+      windowHours = allHours;
+    } else {
+      if (!availBlocks || availBlocks.length === 0) return [];
+      windowHours = allHours.filter((h) => {
+        const slotStart = `${h.toString().padStart(2, "0")}:00:00`;
+        const slotEnd = `${(h + 1).toString().padStart(2, "0")}:00:00`;
+        return availBlocks.some(
+          (b) => b.start_time <= slotStart && b.end_time >= slotEnd
+        );
+      });
+    }
+
+    const booked = (dayAppointments || []).map((a) => ({
+      start: format(new Date(a.start_time), "HH:mm"),
+      end: format(new Date(a.end_time), "HH:mm"),
+    }));
+
+    return windowHours.map((h) => {
+      const start = `${h.toString().padStart(2, "0")}:00`;
+      const end = `${(h + 1).toString().padStart(2, "0")}:00`;
+      const occupied = booked.some((b) => b.start < end && b.end > start);
+      return { hour: h, start, end, occupied };
+    });
+  }, [selectedProfessional, date, availBlocks, dayAppointments]);
+
+  // Reset selected slot when professional or date changes
+  useEffect(() => {
+    setStartTime("");
+    setEndTime("");
+  }, [professionalId, date]);
+
+  // Evaluator-no-blocks message
   useEffect(() => {
     setAvailError("");
-    if (!selectedProfessional || selectedProfessional.type !== "evaluator" || !date || !startTime) return;
+    if (!selectedProfessional || selectedProfessional.type !== "evaluator" || !date) return;
     if (!availBlocks || availBlocks.length === 0) {
       setAvailError("Este evaluador no tiene bloques de disponibilidad para esta fecha.");
-      return;
     }
-    const slotStart = startTime;
-    const slotEnd = endTime;
-    const isWithinBlock = availBlocks.some(
-      (block) => block.start_time <= slotStart && block.end_time >= slotEnd
-    );
-    if (!isWithinBlock) {
-      setAvailError("El horario seleccionado no está dentro de la disponibilidad del evaluador.");
-    }
-  }, [selectedProfessional, availBlocks, date, startTime, endTime]);
+  }, [selectedProfessional, availBlocks, date]);
 
   const createAppointment = useMutation({
     mutationFn: async () => {
@@ -358,21 +406,53 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             </Select>
           </div>
 
-          {/* Date & time */}
+          {/* Date */}
           <div className="space-y-2">
             <Label>Fecha *</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Available slots grid */}
+          {professionalId && date && (
             <div className="space-y-2">
-              <Label>Hora inicio *</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+              <Label>Horario disponible *</Label>
+              {slots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {selectedProfessional?.type === "evaluator"
+                    ? "Sin bloques de disponibilidad para esta fecha."
+                    : "Sin horarios disponibles."}
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {slots.map((s) => {
+                    const isSelected = startTime === s.start;
+                    return (
+                      <button
+                        key={s.start}
+                        type="button"
+                        disabled={s.occupied}
+                        onClick={() => {
+                          setStartTime(s.start);
+                          setEndTime(s.end);
+                        }}
+                        className={cn(
+                          "h-10 rounded-md text-sm font-medium border transition-colors",
+                          s.occupied &&
+                            "bg-muted text-muted-foreground border-border cursor-not-allowed",
+                          !s.occupied && !isSelected &&
+                            "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 hover:bg-emerald-500/25",
+                          isSelected &&
+                            "bg-[#CC2222] text-white border-[#CC2222] hover:bg-[#CC2222]"
+                        )}
+                      >
+                        {s.start}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>Hora fin *</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
-            </div>
-          </div>
+          )}
 
           {/* Double booking error */}
           {doubleBookError && (
@@ -423,7 +503,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones..." />
           </div>
 
-          <Button type="submit" className="w-full" disabled={createAppointment.isPending || !!availError}>
+          <Button type="submit" className="w-full" disabled={createAppointment.isPending || !!availError || !startTime}>
             {createAppointment.isPending ? "Guardando..." : "Crear cita"}
           </Button>
         </form>
