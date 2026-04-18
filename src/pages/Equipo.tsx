@@ -79,8 +79,89 @@ export default function EquipoPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const [editing, setEditing] = useState<Professional | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    type: "physio" as ProfessionalType,
+    is_active: true,
+    schedule_days: [] as string[],
+    schedule_start: "08:00",
+    schedule_end: "17:00",
+  });
+  const [deleting, setDeleting] = useState<Professional | null>(null);
+
+  const openEdit = (p: Professional) => {
+    setEditing(p);
+    setEditForm({
+      name: p.name,
+      type: p.type,
+      is_active: p.is_active,
+      schedule_days: [],
+      schedule_start: "08:00",
+      schedule_end: "17:00",
+    });
+  };
+
+  const updateProfessional = useMutation({
+    mutationFn: async () => {
+      if (!editing) return;
+      const { error } = await supabase
+        .from("professionals")
+        .update({ name: editForm.name, type: editForm.type, is_active: editForm.is_active })
+        .eq("id", editing.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["professionals"] });
+      setEditing(null);
+      toast.success("Profesional actualizado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteProfessional = useMutation({
+    mutationFn: async () => {
+      if (!deleting) return;
+      // Check for future scheduled/confirmed appointments
+      const nowIso = new Date().toISOString();
+      const { data: future, error: checkErr } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("professional_id", deleting.id)
+        .in("status", ["scheduled", "confirmed"])
+        .gte("start_time", nowIso)
+        .limit(1);
+      if (checkErr) throw checkErr;
+      if (future && future.length > 0) {
+        throw new Error(
+          `No puedes eliminar a ${deleting.name} porque tiene citas pendientes. Primero cancela o reasigna sus citas.`,
+        );
+      }
+      const { error } = await supabase.from("professionals").delete().eq("id", deleting.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["professionals"] });
+      setDeleting(null);
+      toast.success("Profesional eliminado");
+    },
+    onError: (e: any) => {
+      toast.error(e.message);
+      setDeleting(null);
+    },
+  });
+
   const toggleDay = (day: string) => {
     setForm((f) => ({
+      ...f,
+      schedule_days: f.schedule_days.includes(day)
+        ? f.schedule_days.filter((d) => d !== day)
+        : [...f.schedule_days, day],
+    }));
+  };
+
+  const toggleEditDay = (day: string) => {
+    setEditForm((f) => ({
       ...f,
       schedule_days: f.schedule_days.includes(day)
         ? f.schedule_days.filter((d) => d !== day)
