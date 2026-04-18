@@ -101,7 +101,30 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
 
   const createAppointment = useMutation({
     mutationFn: async () => {
-      if (!selectedClientId || !professionalId || !date || !startTime || !endTime) {
+      let clientIdToUse = selectedClientId;
+      let createdNewClient = false;
+
+      // Create new client first if inline form is shown
+      if (showNewClientForm) {
+        if (!newClientName.trim() || !newClientPhone.trim()) {
+          throw new Error("Nombre y teléfono del nuevo cliente son obligatorios");
+        }
+        const { data: newClient, error: clientErr } = await supabase
+          .from("clients")
+          .insert({
+            name: newClientName.trim(),
+            phone: newClientPhone.trim(),
+            email: newClientEmail.trim() || null,
+            notes: newClientNotes.trim() || null,
+          })
+          .select()
+          .single();
+        if (clientErr) throw clientErr;
+        clientIdToUse = newClient.id;
+        createdNewClient = true;
+      }
+
+      if (!clientIdToUse || !professionalId || !date || !startTime || !endTime) {
         throw new Error("Completa todos los campos obligatorios");
       }
 
@@ -127,7 +150,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       }
 
       const { error } = await supabase.from("appointments").insert({
-        client_id: selectedClientId,
+        client_id: clientIdToUse,
         professional_id: professionalId,
         package_id: packageId && packageId !== "none" ? packageId : null,
         start_time: startISO,
@@ -136,12 +159,15 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
         notes: notes || null,
       });
       if (error) throw error;
+
+      return { createdNewClient };
     },
-    onSuccess: () => {
+    onSuccess: ({ createdNewClient }) => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
-      toast.success("Cita creada exitosamente");
+      toast.success(createdNewClient ? "Cliente creado y cita agendada" : "Cita creada exitosamente");
     },
     onError: (err: any) => {
       if (err.message === "DOUBLE_BOOKING") {
