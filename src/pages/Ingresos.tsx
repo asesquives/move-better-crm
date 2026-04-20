@@ -79,7 +79,7 @@ export default function IngresosPage() {
 
   const exportCSV = () => {
     if (!detailedEntries?.length) return;
-    const headers = ["Fecha", "Cliente", "Tipo de sesión", "Profesional", "Monto"];
+    const headers = ["Fecha", "Cliente", "Tipo de sesión", "Profesional", "Paquete", "Monto"];
     const rows = detailedEntries.map((e) => {
       const appt = e.appointments as any;
       const typeConfig = appt?.type ? SESSION_TYPE_COLORS[appt.type as keyof typeof SESSION_TYPE_COLORS] : null;
@@ -88,6 +88,7 @@ export default function IngresosPage() {
         (e.clients as any)?.name || "—",
         typeConfig?.label || appt?.type || "—",
         appt?.professionals?.name || "—",
+        (e.packages as any)?.name || "Sesión suelta",
         Number(e.amount).toFixed(2),
       ];
     });
