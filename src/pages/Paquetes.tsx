@@ -227,6 +227,7 @@ export default function PaquetesPage() {
                     <SelectContent>
                       <SelectItem value="yape">Yape</SelectItem>
                       <SelectItem value="transfer">Transferencia</SelectItem>
+                      <SelectItem value="card">Tarjeta</SelectItem>
                       <SelectItem value="cash">Efectivo</SelectItem>
                     </SelectContent>
                   </Select>
