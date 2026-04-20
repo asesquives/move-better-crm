@@ -65,7 +65,8 @@ export function useClientPackages(clientId: string | null, sessionType: string |
         .eq("status", "active");
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      // Exclude single-session packages from the appointment selector — those are loose sessions, not packages
+      return (data || []).filter((p) => p.is_monthly_pass || p.total_sessions > 1);
     },
     enabled: !!clientId,
   });
