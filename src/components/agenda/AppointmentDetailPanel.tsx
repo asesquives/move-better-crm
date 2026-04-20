@@ -76,22 +76,22 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
   const updateStatus = useMutation({
     mutationFn: async (newStatus: AppointmentStatus) => {
       if (!appointment) return;
+      // Revenue & package side-effects are handled by the DB trigger
+      // `handle_revenue_on_session_done` when status changes to 'done'.
       const { error } = await supabase
         .from("appointments")
         .update({ status: newStatus })
         .eq("id", appointment.id);
       if (error) throw error;
-
-      // Revenue logic: only when marking as done
-      if (newStatus === "done") {
-        await processRevenue(appointment.id, appointment.client_id, appointment.package_id, appointment.type);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["packages"] });
       queryClient.invalidateQueries({ queryKey: ["revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-detailed"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-all"] });
       toast.success("Estado actualizado");
     },
     onError: (err: any) => toast.error(err.message),
