@@ -353,7 +353,7 @@ export type Database = {
         | "diagnosis"
       package_status: "active" | "expired" | "completed"
       package_type: "rehabilitation" | "prehabilitation" | "recovery"
-      payment_method: "yape" | "transfer" | "cash"
+      payment_method: "yape" | "transfer" | "cash" | "card"
       professional_type: "physio" | "evaluator"
       receipt_type: "boleta" | "factura"
     }
@@ -505,7 +505,7 @@ export const Constants = {
       ],
       package_status: ["active", "expired", "completed"],
       package_type: ["rehabilitation", "prehabilitation", "recovery"],
-      payment_method: ["yape", "transfer", "cash"],
+      payment_method: ["yape", "transfer", "cash", "card"],
       professional_type: ["physio", "evaluator"],
       receipt_type: ["boleta", "factura"],
     },
