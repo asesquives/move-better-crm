@@ -82,6 +82,9 @@ export default function Dashboard() {
       {/* Business trends */}
       <BusinessTrends />
 
+      {/* Scheduled hours by professional */}
+      <ScheduledHoursByProfessional />
+
       {/* Top clients */}
       <TopClients />
 
