@@ -150,12 +150,12 @@ export function ClientSearchOrCreate({
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre completo" />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Teléfono *</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono" />
+            <Label className="text-xs">Teléfono</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono (opcional)" />
           </div>
           <div className="space-y-2">
             <Label className="text-xs">Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@ejemplo.com" />
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@ejemplo.com (opcional)" />
           </div>
           <div className="space-y-2">
             <Label className="text-xs">Notas</Label>
@@ -165,7 +165,7 @@ export function ClientSearchOrCreate({
             type="button"
             size="sm"
             className="w-full"
-            disabled={createClient.isPending || !name.trim() || !phone.trim()}
+            disabled={createClient.isPending || !name.trim()}
             onClick={() => createClient.mutate()}
           >
             {createClient.isPending ? "Guardando..." : "Guardar cliente"}
