@@ -103,7 +103,7 @@ export default function CatalogoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Catálogo de paquetes</h1>
+        <h1 className="text-2xl font-bold">Catálogo</h1>
         <p className="text-sm text-muted-foreground">Administra los paquetes que ofrece el negocio.</p>
       </div>
 
