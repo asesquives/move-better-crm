@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useClientPackages, useProfessionals, useAvailabilityBlocks } from "@/hooks/useAgendaData";
 import { SESSION_TYPE_COLORS, AppointmentType } from "@/lib/agenda-constants";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { AlertTriangle, Info } from "lucide-react";
 import { ClientSearchOrCreate } from "@/components/clients/ClientSearchOrCreate";
