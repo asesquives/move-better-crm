@@ -159,6 +159,21 @@ export default function PaquetesPage() {
                 </Select>
               </div>
 
+              <div>
+                <Label>Paquete del catálogo</Label>
+                <Select value={catalogId} onValueChange={handleCatalogSelect}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar del catálogo (opcional)" /></SelectTrigger>
+                  <SelectContent>
+                    {selectableCatalog.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} — S/ {Number(c.price).toFixed(2)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Auto-rellena nombre, precio y sesiones.</p>
+              </div>
+
               <div><Label>Nombre del paquete *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
 
               <div>
