@@ -135,28 +135,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
 
   const createAppointment = useMutation({
     mutationFn: async () => {
-      let clientIdToUse = selectedClientId;
-      let createdNewClient = false;
-
-      // Create new client first if inline form is shown
-      if (showNewClientForm) {
-        if (!newClientName.trim() || !newClientPhone.trim()) {
-          throw new Error("Nombre y teléfono del nuevo cliente son obligatorios");
-        }
-        const { data: newClient, error: clientErr } = await supabase
-          .from("clients")
-          .insert({
-            name: newClientName.trim(),
-            phone: newClientPhone.trim(),
-            email: newClientEmail.trim() || null,
-            notes: newClientNotes.trim() || null,
-          })
-          .select()
-          .single();
-        if (clientErr) throw clientErr;
-        clientIdToUse = newClient.id;
-        createdNewClient = true;
-      }
+      const clientIdToUse = selectedClientId;
 
       if (!clientIdToUse || !professionalId || !date || !startTime || !endTime) {
         throw new Error("Completa todos los campos obligatorios");
