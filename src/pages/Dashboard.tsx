@@ -78,6 +78,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Business trends */}
+      <BusinessTrends />
+
+      {/* Top clients */}
+      <TopClients />
+
       {/* Today's appointments */}
       {todayAppointments && todayAppointments.length > 0 && (
         <div>
