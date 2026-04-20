@@ -207,127 +207,15 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
           }}
           className="space-y-4 mt-6"
         >
-          {/* Client search */}
-          <div className="space-y-2">
-            <Label>Cliente *</Label>
-            {selectedClientId ? (
-              <div className="flex items-center justify-between bg-card border rounded-md px-3 py-2">
-                <span className="text-sm font-medium">{selectedClientName}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedClientId(null);
-                    setSelectedClientName("");
-                    setClientSearch("");
-                    setPackageId("");
-                  }}
-                >
-                  Cambiar
-                </Button>
-              </div>
-            ) : showNewClientForm ? (
-              <div className="space-y-3 border rounded-md p-3 bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Nuevo cliente</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setShowNewClientForm(false);
-                      setNewClientName("");
-                      setNewClientPhone("");
-                      setNewClientEmail("");
-                      setNewClientNotes("");
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Nombre completo *</Label>
-                  <Input
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    placeholder="Nombre completo"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Teléfono *</Label>
-                  <Input
-                    value={newClientPhone}
-                    onChange={(e) => setNewClientPhone(e.target.value)}
-                    placeholder="Teléfono"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Email</Label>
-                  <Input
-                    type="email"
-                    value={newClientEmail}
-                    onChange={(e) => setNewClientEmail(e.target.value)}
-                    placeholder="email@ejemplo.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Notas</Label>
-                  <Textarea
-                    value={newClientNotes}
-                    onChange={(e) => setNewClientNotes(e.target.value)}
-                    placeholder="Observaciones..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nombre o teléfono..."
-                    value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                {searchResults && searchResults.length > 0 && (
-                  <div className="border rounded-md max-h-40 overflow-y-auto bg-popover">
-                    {searchResults.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
-                        onClick={() => {
-                          setSelectedClientId(c.id);
-                          setSelectedClientName(c.name);
-                          setClientSearch("");
-                        }}
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        {c.phone && <span className="text-muted-foreground ml-2">· {c.phone}</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {clientSearch.trim().length >= 2 && (!searchResults || searchResults.length === 0) && (
-                  <button
-                    type="button"
-                    className="w-full text-left px-3 py-2 text-sm border rounded-md bg-popover hover:bg-muted transition-colors text-primary font-medium"
-                    onClick={() => {
-                      setNewClientName(clientSearch.trim());
-                      setShowNewClientForm(true);
-                    }}
-                  >
-                    + Crear cliente "{clientSearch.trim()}"
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Client search / create */}
+          <ClientSearchOrCreate
+            value={selectedClientId}
+            onChange={(id) => {
+              setSelectedClientId(id);
+              setPackageId("");
+            }}
+            required
+          />
 
           {/* Professional */}
           <div className="space-y-2">
