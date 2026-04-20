@@ -166,12 +166,14 @@ export default function IngresosPage() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Profesional</TableHead>
+                <TableHead>Paquete</TableHead>
                 <TableHead className="text-right">Monto</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {detailedEntries.map((e) => {
                 const appt = e.appointments as any;
+                const pkg = e.packages as any;
                 const typeConfig = appt?.type ? SESSION_TYPE_COLORS[appt.type as keyof typeof SESSION_TYPE_COLORS] : null;
                 return (
                   <TableRow key={e.id}>
@@ -186,6 +188,7 @@ export default function IngresosPage() {
                       ) : "—"}
                     </TableCell>
                     <TableCell className="text-sm">{appt?.professionals?.name || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{pkg?.name || <span className="italic">Sesión suelta</span>}</TableCell>
                     <TableCell className="text-right font-semibold text-sm">S/ {Number(e.amount).toFixed(2)}</TableCell>
                   </TableRow>
                 );
