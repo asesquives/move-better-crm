@@ -4,6 +4,8 @@ import { Calendar, Users, Package, DollarSign, Clock, UserCog } from "lucide-rea
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import TopClients from "@/components/dashboard/TopClients";
+import BusinessTrends from "@/components/dashboard/BusinessTrends";
 
 export default function Dashboard() {
   const today = new Date();
