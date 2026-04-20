@@ -166,9 +166,9 @@ export default function PaquetesPage() {
               />
 
               <div>
-                <Label>Paquete del catálogo</Label>
+                <Label>Paquete del catálogo *</Label>
                 <Select value={catalogId} onValueChange={handleCatalogSelect}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar del catálogo (opcional)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar paquete" /></SelectTrigger>
                   <SelectContent>
                     {selectableCatalog.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
@@ -177,51 +177,46 @@ export default function PaquetesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Auto-rellena nombre, precio y sesiones.</p>
               </div>
 
-              <div><Label>Nombre del paquete *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-
-              <div>
-                <Label>Tipo</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as PackageType })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="rehabilitation">Rehabilitación</SelectItem>
-                    <SelectItem value="prehabilitation">Prehabilitación</SelectItem>
-                    <SelectItem value="recovery">Recuperación</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>¿Es monthly pass?</Label>
-                <Switch checked={form.is_monthly_pass} onCheckedChange={(v) => setForm({ ...form, is_monthly_pass: v })} />
-              </div>
-
-              {!form.is_monthly_pass ? (
-                <div>
-                  <Label>Número de sesiones</Label>
-                  <Select value={form.total_sessions} onValueChange={(v) => setForm({ ...form, total_sessions: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 sesiones</SelectItem>
-                      <SelectItem value="10">10 sesiones</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {selectedCatalog && (
+                <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">Sesiones incluidas:</span>{" "}
+                    <span className="font-semibold">
+                      {selectedCatalog.is_monthly_pass
+                        ? `${totalSessions} (pase mensual)`
+                        : totalSessions}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Precio por sesión:</span>{" "}
+                    <span className="font-semibold">S/ {pricePerSession.toFixed(2)}</span>
+                  </p>
                 </div>
-              ) : (
+              )}
+
+              {selectedCatalog?.is_monthly_pass && (
                 <div>
                   <Label>Mes del pase</Label>
                   <Input type="month" value={form.month_start} onChange={(e) => setForm({ ...form, month_start: e.target.value })} />
                 </div>
               )}
 
-              <div><Label>Total pagado (S/)</Label><Input type="number" step="0.01" value={form.total_paid} onChange={(e) => setForm({ ...form, total_paid: e.target.value })} /></div>
-
-              <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                <span className="text-muted-foreground">Precio por sesión:</span>{" "}
-                <span className="font-semibold">S/ {pricePerSession.toFixed(2)}</span>
+              <div>
+                <Label>Total pagado (S/)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.total_paid}
+                  onChange={(e) => setForm({ ...form, total_paid: e.target.value })}
+                  disabled={!selectedCatalog}
+                />
+                {selectedCatalog && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sugerido: S/ {Number(selectedCatalog.price).toFixed(2)}. Edita si el cliente negoció otro precio.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -248,17 +243,13 @@ export default function PaquetesPage() {
                 </div>
               </div>
 
-              {form.is_monthly_pass && (
-                <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground">
-                  Sesiones para monthly pass: ingresa el total de sesiones incluidas en el mes.
-                  <div className="mt-2">
-                    <Label className="text-xs">Sesiones incluidas</Label>
-                    <Input type="number" value={form.total_sessions} onChange={(e) => setForm({ ...form, total_sessions: e.target.value })} className="mt-1" />
-                  </div>
-                </div>
-              )}
-
-              <Button type="submit" className="w-full" disabled={createPackage.isPending}>Guardar</Button>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={createPackage.isPending || !selectedCatalog || !form.client_id}
+              >
+                Guardar
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
