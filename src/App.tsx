@@ -13,6 +13,7 @@ import PaquetesPage from "@/pages/Paquetes";
 import IngresosPage from "@/pages/Ingresos";
 import DisponibilidadPage from "@/pages/Disponibilidad";
 import EquipoPage from "@/pages/Equipo";
+import CatalogoPage from "@/pages/Catalogo";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const AppRoutes = () => (
     <Route path="/ingresos" element={<ProtectedRoute><IngresosPage /></ProtectedRoute>} />
     <Route path="/disponibilidad" element={<ProtectedRoute><DisponibilidadPage /></ProtectedRoute>} />
     <Route path="/equipo" element={<ProtectedRoute><EquipoPage /></ProtectedRoute>} />
+    <Route path="/catalogo" element={<ProtectedRoute><CatalogoPage /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

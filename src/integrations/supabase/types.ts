@@ -143,6 +143,45 @@ export type Database = {
         }
         Relationships: []
       }
+      package_catalog: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_monthly_pass: boolean
+          name: string
+          price: number
+          price_per_session: number | null
+          program: Database["public"]["Enums"]["catalog_program"]
+          sessions: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_monthly_pass?: boolean
+          name: string
+          price?: number
+          price_per_session?: number | null
+          program: Database["public"]["Enums"]["catalog_program"]
+          sessions?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_monthly_pass?: boolean
+          name?: string
+          price?: number
+          price_per_session?: number | null
+          program?: Database["public"]["Enums"]["catalog_program"]
+          sessions?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       packages: {
         Row: {
           client_id: string
@@ -298,6 +337,11 @@ export type Database = {
         | "rehabilitation"
         | "prehabilitation"
         | "recovery"
+      catalog_program:
+        | "rehabilitation"
+        | "prehabilitation"
+        | "recovery"
+        | "diagnosis"
       package_status: "active" | "expired" | "completed"
       package_type: "rehabilitation" | "prehabilitation" | "recovery"
       payment_method: "yape" | "transfer" | "cash"
@@ -443,6 +487,12 @@ export const Constants = {
         "rehabilitation",
         "prehabilitation",
         "recovery",
+      ],
+      catalog_program: [
+        "rehabilitation",
+        "prehabilitation",
+        "recovery",
+        "diagnosis",
       ],
       package_status: ["active", "expired", "completed"],
       package_type: ["rehabilitation", "prehabilitation", "recovery"],

@@ -1,4 +1,4 @@
-import { Calendar, Users, Package, DollarSign, Clock, UserCog, LayoutDashboard, LogOut } from "lucide-react";
+import { Calendar, Users, Package, DollarSign, Clock, UserCog, LayoutDashboard, LogOut, Tag } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ const navItems = [
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Clientes", url: "/clientes", icon: Users },
   { title: "Paquetes", url: "/paquetes", icon: Package },
+  { title: "Catálogo", url: "/catalogo", icon: Tag },
   { title: "Ingresos", url: "/ingresos", icon: DollarSign },
   { title: "Disponibilidad", url: "/disponibilidad", icon: Clock },
   { title: "Equipo", url: "/equipo", icon: UserCog },
