@@ -66,13 +66,6 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       setStartTime(`${(defaultHour ?? 8).toString().padStart(2, "0")}:00`);
       setEndTime(`${((defaultHour ?? 8) + 1).toString().padStart(2, "0")}:00`);
       setSelectedClientId(null);
-      setSelectedClientName("");
-      setClientSearch("");
-      setShowNewClientForm(false);
-      setNewClientName("");
-      setNewClientPhone("");
-      setNewClientEmail("");
-      setNewClientNotes("");
       setProfessionalId("");
       setSessionType("rehabilitation");
       setPackageId("");
