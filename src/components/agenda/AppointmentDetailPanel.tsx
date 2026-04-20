@@ -9,11 +9,6 @@ import { SESSION_TYPE_COLORS, STATUS_LABELS, STATUS_COLORS, AppointmentType, App
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-const LOOSE_SESSION_PRICES: Record<string, number> = {
-  medical_diagnosis: 200,
-  physio_diagnosis: 150,
-};
-
 interface AppointmentDetailPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
