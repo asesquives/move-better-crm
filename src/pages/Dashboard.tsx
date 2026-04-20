@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import TopClients from "@/components/dashboard/TopClients";
 import BusinessTrends from "@/components/dashboard/BusinessTrends";
+import ScheduledHoursByProfessional from "@/components/dashboard/ScheduledHoursByProfessional";
 
 export default function Dashboard() {
   const today = new Date();
@@ -80,6 +81,9 @@ export default function Dashboard() {
 
       {/* Business trends */}
       <BusinessTrends />
+
+      {/* Scheduled hours by professional */}
+      <ScheduledHoursByProfessional />
 
       {/* Top clients */}
       <TopClients />
