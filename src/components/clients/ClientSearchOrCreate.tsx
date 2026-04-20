@@ -65,14 +65,14 @@ export function ClientSearchOrCreate({
 
   const createClient = useMutation({
     mutationFn: async () => {
-      if (!name.trim() || !phone.trim()) {
-        throw new Error("Nombre y teléfono son obligatorios");
+      if (!name.trim()) {
+        throw new Error("El nombre es obligatorio");
       }
       const { data, error } = await supabase
         .from("clients")
         .insert({
           name: name.trim(),
-          phone: phone.trim(),
+          phone: phone.trim() || null,
           email: email.trim() || null,
           notes: notes.trim() || null,
         })
