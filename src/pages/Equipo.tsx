@@ -52,14 +52,21 @@ export default function EquipoPage() {
 
   const createProfessional = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("professionals").insert({
+      const payload: any = {
         name: form.name,
         type: form.type,
-      });
+      };
+      if (form.type === "physio") {
+        payload.schedule_days = form.schedule_days;
+        payload.schedule_start = form.schedule_start;
+        payload.schedule_end = form.schedule_end;
+      }
+      const { error } = await supabase.from("professionals").insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["professionals"] });
+      queryClient.invalidateQueries({ queryKey: ["professionals-active"] });
       setOpen(false);
       setForm({ name: "", type: "physio", schedule_days: [], schedule_start: "08:00", schedule_end: "17:00" });
       toast.success("Profesional agregado");
@@ -92,27 +99,43 @@ export default function EquipoPage() {
 
   const openEdit = (p: Professional) => {
     setEditing(p);
+    const sp: any = p;
     setEditForm({
       name: p.name,
       type: p.type,
       is_active: p.is_active,
-      schedule_days: [],
-      schedule_start: "08:00",
-      schedule_end: "17:00",
+      schedule_days: Array.isArray(sp.schedule_days) ? sp.schedule_days : [],
+      schedule_start: sp.schedule_start ? sp.schedule_start.slice(0, 5) : "08:00",
+      schedule_end: sp.schedule_end ? sp.schedule_end.slice(0, 5) : "17:00",
     });
   };
 
   const updateProfessional = useMutation({
     mutationFn: async () => {
       if (!editing) return;
+      const payload: any = {
+        name: editForm.name,
+        type: editForm.type,
+        is_active: editForm.is_active,
+      };
+      if (editForm.type === "physio") {
+        payload.schedule_days = editForm.schedule_days;
+        payload.schedule_start = editForm.schedule_start;
+        payload.schedule_end = editForm.schedule_end;
+      } else {
+        payload.schedule_days = [];
+        payload.schedule_start = null;
+        payload.schedule_end = null;
+      }
       const { error } = await supabase
         .from("professionals")
-        .update({ name: editForm.name, type: editForm.type, is_active: editForm.is_active })
+        .update(payload)
         .eq("id", editing.id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["professionals"] });
+      queryClient.invalidateQueries({ queryKey: ["professionals-active"] });
       setEditing(null);
       toast.success("Profesional actualizado");
     },
