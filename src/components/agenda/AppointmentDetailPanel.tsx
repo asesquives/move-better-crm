@@ -30,7 +30,7 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
   const queryClient = useQueryClient();
   const [noShowDialog, setNoShowDialog] = useState(false);
 
-
+  const updateStatus = useMutation({
     mutationFn: async (newStatus: AppointmentStatus) => {
       if (!appointment) return;
       // Revenue & package side-effects are handled by the DB trigger
