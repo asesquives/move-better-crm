@@ -30,50 +30,7 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
   const queryClient = useQueryClient();
   const [noShowDialog, setNoShowDialog] = useState(false);
 
-  const processRevenue = async (appointmentId: string, clientId: string, packageId: string | null, appointmentType: string) => {
-    let revenueAmount = 0;
 
-    if (packageId) {
-      // Fetch package to calculate per-session amount
-      const { data: pkg, error: pkgErr } = await supabase
-        .from("packages")
-        .select("*")
-        .eq("id", packageId)
-        .single();
-      if (pkgErr) throw pkgErr;
-
-      revenueAmount = Number(pkg.total_paid) / pkg.total_sessions;
-
-      // Increment sessions_used
-      const newUsed = pkg.sessions_used + 1;
-      const updates: any = { sessions_used: newUsed };
-      if (newUsed >= pkg.total_sessions) {
-        updates.status = "completed";
-      }
-      const { error: updErr } = await supabase.from("packages").update(updates).eq("id", packageId);
-      if (updErr) throw updErr;
-    } else {
-      // Loose session
-      revenueAmount = LOOSE_SESSION_PRICES[appointmentType] || 0;
-    }
-
-    // Update appointment revenue_amount
-    await supabase.from("appointments").update({ revenue_amount: revenueAmount }).eq("id", appointmentId);
-
-    // Create revenue entry
-    if (revenueAmount > 0) {
-      const { error: revErr } = await supabase.from("revenue_entries").insert({
-        appointment_id: appointmentId,
-        client_id: clientId,
-        package_id: packageId,
-        amount: revenueAmount,
-        recognized_at: new Date().toISOString(),
-      });
-      if (revErr) throw revErr;
-    }
-  };
-
-  const updateStatus = useMutation({
     mutationFn: async (newStatus: AppointmentStatus) => {
       if (!appointment) return;
       // Revenue & package side-effects are handled by the DB trigger
