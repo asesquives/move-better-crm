@@ -37,7 +37,6 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   const [doubleBookError, setDoubleBookError] = useState("");
   const [availError, setAvailError] = useState("");
 
-  const { data: searchResults } = useClients(clientSearch);
   const { data: professionals } = useProfessionals();
   const { data: clientPackages } = useClientPackages(selectedClientId, sessionType);
   const { data: availBlocks } = useAvailabilityBlocks(professionalId, date);
