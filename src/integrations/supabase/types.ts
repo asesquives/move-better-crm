@@ -247,6 +247,9 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          schedule_days: string[] | null
+          schedule_end: string | null
+          schedule_start: string | null
           type: Database["public"]["Enums"]["professional_type"]
         }
         Insert: {
@@ -254,6 +257,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          schedule_days?: string[] | null
+          schedule_end?: string | null
+          schedule_start?: string | null
           type?: Database["public"]["Enums"]["professional_type"]
         }
         Update: {
@@ -261,6 +267,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          schedule_days?: string[] | null
+          schedule_end?: string | null
+          schedule_start?: string | null
           type?: Database["public"]["Enums"]["professional_type"]
         }
         Relationships: []
