@@ -65,14 +65,14 @@ export function ClientSearchOrCreate({
 
   const createClient = useMutation({
     mutationFn: async () => {
-      if (!name.trim() || !phone.trim()) {
-        throw new Error("Nombre y teléfono son obligatorios");
+      if (!name.trim()) {
+        throw new Error("El nombre es obligatorio");
       }
       const { data, error } = await supabase
         .from("clients")
         .insert({
           name: name.trim(),
-          phone: phone.trim(),
+          phone: phone.trim() || null,
           email: email.trim() || null,
           notes: notes.trim() || null,
         })
@@ -150,12 +150,12 @@ export function ClientSearchOrCreate({
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre completo" />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Teléfono *</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono" />
+            <Label className="text-xs">Teléfono</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Teléfono (opcional)" />
           </div>
           <div className="space-y-2">
             <Label className="text-xs">Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@ejemplo.com" />
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@ejemplo.com (opcional)" />
           </div>
           <div className="space-y-2">
             <Label className="text-xs">Notas</Label>
@@ -165,7 +165,7 @@ export function ClientSearchOrCreate({
             type="button"
             size="sm"
             className="w-full"
-            disabled={createClient.isPending || !name.trim() || !phone.trim()}
+            disabled={createClient.isPending || !name.trim()}
             onClick={() => createClient.mutate()}
           >
             {createClient.isPending ? "Guardando..." : "Guardar cliente"}
