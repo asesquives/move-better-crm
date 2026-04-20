@@ -86,6 +86,16 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
   // Selected professional info
   const selectedProfessional = professionals?.find((p) => p.id === professionalId);
 
+  // Day-of-week label (Mon-Sat) used to match physio's fixed schedule_days
+  const DAY_LABELS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+  // Detect if physio has no schedule configured (fallback mode)
+  const physioMissingSchedule = useMemo(() => {
+    if (!selectedProfessional || selectedProfessional.type !== "physio") return false;
+    const sp: any = selectedProfessional;
+    return !sp.schedule_start || !sp.schedule_end || !sp.schedule_days || sp.schedule_days.length === 0;
+  }, [selectedProfessional]);
+
   // Compute slot grid based on professional type
   const slots = useMemo(() => {
     if (!selectedProfessional || !date) return [];
@@ -93,7 +103,23 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
 
     let windowHours: number[] = [];
     if (selectedProfessional.type === "physio") {
-      windowHours = allHours;
+      const sp: any = selectedProfessional;
+      const hasSchedule = sp.schedule_start && sp.schedule_end && sp.schedule_days && sp.schedule_days.length > 0;
+
+      if (!hasSchedule) {
+        // Fallback: full 7-20 range
+        windowHours = allHours;
+      } else {
+        // Check if selected date's day of week is in schedule_days
+        const dow = new Date(`${date}T12:00:00`).getDay();
+        const dayName = DAY_LABELS[dow];
+        if (!sp.schedule_days.includes(dayName)) {
+          return [];
+        }
+        const startH = parseInt(sp.schedule_start.slice(0, 2), 10);
+        const endH = parseInt(sp.schedule_end.slice(0, 2), 10);
+        windowHours = allHours.filter((h) => h >= startH && h < endH);
+      }
     } else {
       if (!availBlocks || availBlocks.length === 0) return [];
       windowHours = allHours.filter((h) => {
@@ -267,12 +293,20 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
           {/* Available slots grid */}
           {professionalId && date && (
             <div className="space-y-2">
-              <Label>Horario disponible *</Label>
+              <Label className="flex items-center gap-2">
+                Horario disponible *
+                {physioMissingSchedule && (
+                  <span className="flex items-center gap-1 text-xs text-amber-600 font-normal">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Sin horario configurado (mostrando 7:00–20:00)
+                  </span>
+                )}
+              </Label>
               {slots.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   {selectedProfessional?.type === "evaluator"
                     ? "Sin bloques de disponibilidad para esta fecha."
-                    : "Sin horarios disponibles."}
+                    : "El fisioterapeuta no atiende este día."}
                 </p>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
