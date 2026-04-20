@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useClients, useClientPackages, useProfessionals, useAvailabilityBlocks } from "@/hooks/useAgendaData";
 import { SESSION_TYPE_COLORS, PACKAGE_TYPE_MAP, AppointmentType } from "@/lib/agenda-constants";
 import { toast } from "sonner";
-import { AlertTriangle, Info, Search } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
+import { ClientSearchOrCreate } from "@/components/clients/ClientSearchOrCreate";
 import type { Database } from "@/integrations/supabase/types";
 import { isPeruHoliday, getHolidayName } from "@/lib/peru-holidays";
 
