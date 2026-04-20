@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addHours } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -9,29 +9,47 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useClients, useClientPackages, useProfessionals, useAvailabilityBlocks } from "@/hooks/useAgendaData";
-import { SESSION_TYPE_COLORS, PACKAGE_TYPE_MAP, AppointmentType } from "@/lib/agenda-constants";
+import { useClientPackages, useProfessionals, useAvailabilityBlocks } from "@/hooks/useAgendaData";
+import { SESSION_TYPE_COLORS, AppointmentType } from "@/lib/agenda-constants";
 import { toast } from "sonner";
 import { AlertTriangle, Info } from "lucide-react";
 import { ClientSearchOrCreate } from "@/components/clients/ClientSearchOrCreate";
-import type { Database } from "@/integrations/supabase/types";
 import { isPeruHoliday, getHolidayName } from "@/lib/peru-holidays";
+
+export interface PreselectedSlot {
+  date: string;       // yyyy-MM-dd
+  startTime: string;  // HH:mm
+  endTime: string;    // HH:mm
+}
 
 interface CreateAppointmentPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultDate: Date | null;
-  defaultHour: number | null;
+  /** When provided => Flujo A (slot pre-seleccionado, no editable). Cuando es null => Flujo B. */
+  preselectedSlot?: PreselectedSlot | null;
+  /** Compatibilidad anterior (botón "Nueva cita"): inicializa fecha/hora pero todo editable. */
+  defaultDate?: Date | null;
+  defaultHour?: number | null;
 }
 
-export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaultHour }: CreateAppointmentPanelProps) {
+const DAY_LABELS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+export function CreateAppointmentPanel({
+  open,
+  onOpenChange,
+  preselectedSlot = null,
+  defaultDate,
+  defaultHour,
+}: CreateAppointmentPanelProps) {
   const queryClient = useQueryClient();
+  const isFlowA = !!preselectedSlot;
+
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [professionalId, setProfessionalId] = useState("");
   const [sessionType, setSessionType] = useState<AppointmentType>("rehabilitation");
   const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime] = useState("09:00");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [packageId, setPackageId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [doubleBookError, setDoubleBookError] = useState("");
@@ -59,23 +77,65 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
     enabled: !!professionalId && !!date,
   });
 
-  // Reset form when panel opens with defaults
-  useEffect(() => {
-    if (open && defaultDate) {
-      setDate(format(defaultDate, "yyyy-MM-dd"));
-      setStartTime(`${(defaultHour ?? 8).toString().padStart(2, "0")}:00`);
-      setEndTime(`${((defaultHour ?? 8) + 1).toString().padStart(2, "0")}:00`);
-      setSelectedClientId(null);
-      setProfessionalId("");
-      setSessionType("rehabilitation");
-      setPackageId("");
-      setNotes("");
-      setDoubleBookError("");
-      setAvailError("");
-    }
-  }, [open, defaultDate, defaultHour]);
+  // Flujo A: appointments de TODOS los profesionales en esa fecha (para filtrar dropdown)
+  const { data: slotAppointments } = useQuery({
+    queryKey: ["slot-appointments", preselectedSlot?.date],
+    queryFn: async () => {
+      if (!preselectedSlot) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("professional_id, start_time, end_time, status")
+        .neq("status", "cancelled")
+        .gte("start_time", `${preselectedSlot.date}T00:00:00`)
+        .lte("start_time", `${preselectedSlot.date}T23:59:59`);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!preselectedSlot,
+  });
 
-  // Check for compatible packages
+  // Flujo A: availability_blocks de TODOS los evaluadores para esa fecha
+  const { data: dayAvailBlocks } = useQuery({
+    queryKey: ["day-avail-blocks", preselectedSlot?.date],
+    queryFn: async () => {
+      if (!preselectedSlot) return [];
+      const { data, error } = await supabase
+        .from("availability_blocks")
+        .select("professional_id, start_time, end_time, is_available")
+        .eq("date", preselectedSlot.date)
+        .eq("is_available", true);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!preselectedSlot,
+  });
+
+  // Reset al abrir
+  useEffect(() => {
+    if (!open) return;
+    setSelectedClientId(null);
+    setProfessionalId("");
+    setSessionType("rehabilitation");
+    setPackageId("");
+    setNotes("");
+    setDoubleBookError("");
+    setAvailError("");
+
+    if (preselectedSlot) {
+      setDate(preselectedSlot.date);
+      setStartTime(preselectedSlot.startTime);
+      setEndTime(preselectedSlot.endTime);
+    } else if (defaultDate) {
+      setDate(format(defaultDate, "yyyy-MM-dd"));
+      setStartTime("");
+      setEndTime("");
+    } else {
+      setDate("");
+      setStartTime("");
+      setEndTime("");
+    }
+  }, [open, preselectedSlot, defaultDate, defaultHour]);
+
   const compatiblePackage = useMemo(() => {
     if (!clientPackages?.length || !sessionType) return null;
     return clientPackages.find(
@@ -83,39 +143,64 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
     );
   }, [clientPackages, sessionType]);
 
-  // Selected professional info
   const selectedProfessional = professionals?.find((p) => p.id === professionalId);
 
-  // Day-of-week label (Mon-Sat) used to match physio's fixed schedule_days
-  const DAY_LABELS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-
-  // Detect if physio has no schedule configured (fallback mode)
   const physioMissingSchedule = useMemo(() => {
     if (!selectedProfessional || selectedProfessional.type !== "physio") return false;
     const sp: any = selectedProfessional;
     return !sp.schedule_start || !sp.schedule_end || !sp.schedule_days || sp.schedule_days.length === 0;
   }, [selectedProfessional]);
 
-  // Compute slot grid based on professional type
+  // ============ FLUJO A: profesionales filtrados para el slot ============
+  const availableProfessionals = useMemo(() => {
+    if (!isFlowA || !preselectedSlot || !professionals) return [];
+    const { date: d, startTime: st, endTime: et } = preselectedSlot;
+    const dow = new Date(`${d}T12:00:00`).getDay();
+    const dayName = DAY_LABELS[dow];
+    const stSec = `${st}:00`;
+    const etSec = `${et}:00`;
+
+    return professionals.filter((p: any) => {
+      // Disponibilidad por tipo
+      if (p.type === "physio") {
+        const hasSchedule = p.schedule_start && p.schedule_end && p.schedule_days?.length > 0;
+        if (!hasSchedule) return false; // sin horario configurado => no aparece
+        if (!p.schedule_days.includes(dayName)) return false;
+        if (!(p.schedule_start <= stSec && p.schedule_end >= etSec)) return false;
+      } else {
+        // evaluator: necesita un availability_block que cubra el slot
+        const blocks = (dayAvailBlocks || []).filter((b) => b.professional_id === p.id);
+        const covered = blocks.some((b) => b.start_time <= stSec && b.end_time >= etSec);
+        if (!covered) return false;
+      }
+      // No tener cita encima del slot
+      const hasOverlap = (slotAppointments || [])
+        .filter((a) => a.professional_id === p.id)
+        .some((a) => {
+          const aS = format(new Date(a.start_time), "HH:mm");
+          const aE = format(new Date(a.end_time), "HH:mm");
+          return aS < et && aE > st;
+        });
+      return !hasOverlap;
+    });
+  }, [isFlowA, preselectedSlot, professionals, dayAvailBlocks, slotAppointments]);
+
+  // ============ FLUJO B: grilla de horarios para profesional+fecha ============
   const slots = useMemo(() => {
+    if (isFlowA) return [];
     if (!selectedProfessional || !date) return [];
-    const allHours = Array.from({ length: 14 }, (_, i) => i + 7); // 7..20
+    const allHours = Array.from({ length: 14 }, (_, i) => i + 7);
 
     let windowHours: number[] = [];
     if (selectedProfessional.type === "physio") {
       const sp: any = selectedProfessional;
-      const hasSchedule = sp.schedule_start && sp.schedule_end && sp.schedule_days && sp.schedule_days.length > 0;
-
+      const hasSchedule = sp.schedule_start && sp.schedule_end && sp.schedule_days?.length > 0;
       if (!hasSchedule) {
-        // Fallback: full 7-20 range
         windowHours = allHours;
       } else {
-        // Check if selected date's day of week is in schedule_days
         const dow = new Date(`${date}T12:00:00`).getDay();
         const dayName = DAY_LABELS[dow];
-        if (!sp.schedule_days.includes(dayName)) {
-          return [];
-        }
+        if (!sp.schedule_days.includes(dayName)) return [];
         const startH = parseInt(sp.schedule_start.slice(0, 2), 10);
         const endH = parseInt(sp.schedule_end.slice(0, 2), 10);
         windowHours = allHours.filter((h) => h >= startH && h < endH);
@@ -125,9 +210,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       windowHours = allHours.filter((h) => {
         const slotStart = `${h.toString().padStart(2, "0")}:00:00`;
         const slotEnd = `${(h + 1).toString().padStart(2, "0")}:00:00`;
-        return availBlocks.some(
-          (b) => b.start_time <= slotStart && b.end_time >= slotEnd
-        );
+        return availBlocks.some((b) => b.start_time <= slotStart && b.end_time >= slotEnd);
       });
     }
 
@@ -142,37 +225,33 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       const occupied = booked.some((b) => b.start < end && b.end > start);
       return { hour: h, start, end, occupied };
     });
-  }, [selectedProfessional, date, availBlocks, dayAppointments]);
+  }, [isFlowA, selectedProfessional, date, availBlocks, dayAppointments]);
 
-  // Reset selected slot when professional or date changes
+  // Reset selected slot al cambiar profesional/fecha (solo Flujo B)
   useEffect(() => {
+    if (isFlowA) return;
     setStartTime("");
     setEndTime("");
-  }, [professionalId, date]);
+  }, [professionalId, date, isFlowA]);
 
-  // Evaluator-no-blocks message
+  // Mensaje de evaluador sin bloques (Flujo B)
   useEffect(() => {
     setAvailError("");
+    if (isFlowA) return;
     if (!selectedProfessional || selectedProfessional.type !== "evaluator" || !date) return;
     if (!availBlocks || availBlocks.length === 0) {
-      setAvailError("Este evaluador no tiene bloques de disponibilidad para esta fecha.");
+      setAvailError("Este evaluador no tiene disponibilidad para esta fecha");
     }
-  }, [selectedProfessional, availBlocks, date]);
+  }, [isFlowA, selectedProfessional, availBlocks, date]);
 
   const createAppointment = useMutation({
     mutationFn: async () => {
-      const clientIdToUse = selectedClientId;
-
-      if (!clientIdToUse || !professionalId || !date || !startTime || !endTime) {
+      if (!selectedClientId || !professionalId || !date || !startTime || !endTime) {
         throw new Error("Completa todos los campos obligatorios");
       }
-
-      // Holiday check
       if (isPeruHoliday(date)) {
         throw new Error(`No se pueden agendar citas en feriados (${getHolidayName(date)})`);
       }
-
-      // Double booking check
       const startISO = new Date(`${date}T${startTime}:00`).toISOString();
       const endISO = new Date(`${date}T${endTime}:00`).toISOString();
 
@@ -184,12 +263,10 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
         .lt("start_time", endISO)
         .gt("end_time", startISO);
 
-      if (conflicts && conflicts.length > 0) {
-        throw new Error("DOUBLE_BOOKING");
-      }
+      if (conflicts && conflicts.length > 0) throw new Error("DOUBLE_BOOKING");
 
       const { error } = await supabase.from("appointments").insert({
-        client_id: clientIdToUse,
+        client_id: selectedClientId,
         professional_id: professionalId,
         package_id: packageId && packageId !== "none" ? packageId : null,
         start_time: startISO,
@@ -198,7 +275,6 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
         notes: notes || null,
       });
       if (error) throw error;
-
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
@@ -217,12 +293,18 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
     },
   });
 
+  const formattedSlotLabel = preselectedSlot
+    ? `${format(new Date(`${preselectedSlot.date}T12:00:00`), "EEEE d 'de' MMMM yyyy")} · ${preselectedSlot.startTime} – ${preselectedSlot.endTime}`
+    : "";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Nueva cita</SheetTitle>
-          <SheetDescription>Completa los datos para agendar la cita</SheetDescription>
+          <SheetDescription>
+            {isFlowA ? "Horario pre-seleccionado desde el calendario" : "Completa los datos para agendar la cita"}
+          </SheetDescription>
         </SheetHeader>
 
         <form
@@ -233,7 +315,15 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
           }}
           className="space-y-4 mt-6"
         >
-          {/* Client search / create */}
+          {/* Flujo A: slot fijo (texto) */}
+          {isFlowA && (
+            <div className="rounded-md border bg-muted/40 p-3">
+              <p className="text-xs uppercase text-muted-foreground tracking-wide">Fecha y hora</p>
+              <p className="text-sm font-medium capitalize mt-1">{formattedSlotLabel}</p>
+            </div>
+          )}
+
+          {/* Cliente */}
           <ClientSearchOrCreate
             value={selectedClientId}
             onChange={(id) => {
@@ -243,30 +333,35 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             required
           />
 
-          {/* Professional */}
+          {/* Profesional */}
           <div className="space-y-2">
             <Label>Profesional *</Label>
             <Select value={professionalId} onValueChange={setProfessionalId}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar profesional" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    isFlowA && availableProfessionals.length === 0
+                      ? "Sin profesionales disponibles"
+                      : "Seleccionar profesional"
+                  }
+                />
+              </SelectTrigger>
               <SelectContent>
-                {professionals?.map((p) => (
+                {(isFlowA ? availableProfessionals : professionals)?.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} ({p.type === "physio" ? "Fisio" : "Evaluador"})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {isFlowA && availableProfessionals.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Ningún profesional tiene disponibilidad libre en este horario.
+              </p>
+            )}
           </div>
 
-          {/* Evaluator availability warning */}
-          {availError && (
-            <div className="flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-md p-3 text-sm text-orange-800">
-              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>{availError}</span>
-            </div>
-          )}
-
-          {/* Session type */}
+          {/* Tipo de sesión */}
           <div className="space-y-2">
             <Label>Tipo de sesión *</Label>
             <Select value={sessionType} onValueChange={(v) => setSessionType(v as AppointmentType)}>
@@ -284,63 +379,72 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             </Select>
           </div>
 
-          {/* Date */}
-          <div className="space-y-2">
-            <Label>Fecha *</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-          </div>
+          {/* Flujo B: Fecha + grilla */}
+          {!isFlowA && (
+            <>
+              <div className="space-y-2">
+                <Label>Fecha *</Label>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+              </div>
 
-          {/* Available slots grid */}
-          {professionalId && date && (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                Horario disponible *
-                {physioMissingSchedule && (
-                  <span className="flex items-center gap-1 text-xs text-amber-600 font-normal">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Sin horario configurado (mostrando 7:00–20:00)
-                  </span>
-                )}
-              </Label>
-              {slots.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {selectedProfessional?.type === "evaluator"
-                    ? "Sin bloques de disponibilidad para esta fecha."
-                    : "El fisioterapeuta no atiende este día."}
-                </p>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {slots.map((s) => {
-                    const isSelected = startTime === s.start;
-                    return (
-                      <button
-                        key={s.start}
-                        type="button"
-                        disabled={s.occupied}
-                        onClick={() => {
-                          setStartTime(s.start);
-                          setEndTime(s.end);
-                        }}
-                        className={cn(
-                          "h-10 rounded-md text-sm font-medium border transition-colors",
-                          s.occupied &&
-                            "bg-muted text-muted-foreground border-border cursor-not-allowed",
-                          !s.occupied && !isSelected &&
-                            "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 hover:bg-emerald-500/25",
-                          isSelected &&
-                            "bg-[#CC2222] text-white border-[#CC2222] hover:bg-[#CC2222]"
-                        )}
-                      >
-                        {s.start}
-                      </button>
-                    );
-                  })}
+              {availError && (
+                <div className="flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-md p-3 text-sm text-orange-800">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>{availError}</span>
                 </div>
               )}
-            </div>
+
+              {professionalId && date && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    Horario disponible *
+                    {physioMissingSchedule && (
+                      <span className="flex items-center gap-1 text-xs text-amber-600 font-normal">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Sin horario configurado (mostrando 7:00–20:00)
+                      </span>
+                    )}
+                  </Label>
+                  {slots.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {selectedProfessional?.type === "evaluator"
+                        ? "Este evaluador no tiene disponibilidad para esta fecha"
+                        : "El fisioterapeuta no atiende este día."}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {slots.map((s) => {
+                        const isSelected = startTime === s.start;
+                        return (
+                          <button
+                            key={s.start}
+                            type="button"
+                            disabled={s.occupied}
+                            onClick={() => {
+                              setStartTime(s.start);
+                              setEndTime(s.end);
+                            }}
+                            className={cn(
+                              "h-10 rounded-md text-sm font-medium border transition-colors",
+                              s.occupied &&
+                                "bg-muted text-muted-foreground border-border cursor-not-allowed",
+                              !s.occupied && !isSelected &&
+                                "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 hover:bg-emerald-500/25",
+                              isSelected &&
+                                "bg-[#CC2222] text-white border-[#CC2222] hover:bg-[#CC2222]"
+                            )}
+                          >
+                            {s.start}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
-          {/* Double booking error */}
           {doubleBookError && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
               <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
@@ -348,7 +452,7 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             </div>
           )}
 
-          {/* Package */}
+          {/* Paquete */}
           <div className="space-y-2">
             <Label>Paquete (opcional)</Label>
             <Select value={packageId} onValueChange={setPackageId}>
@@ -364,7 +468,6 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             </Select>
           </div>
 
-          {/* Compatible package suggestion */}
           {compatiblePackage && !packageId && (
             <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
               <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
@@ -383,13 +486,17 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
             </div>
           )}
 
-          {/* Notes */}
+          {/* Notas */}
           <div className="space-y-2">
             <Label>Notas</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones..." />
           </div>
 
-          <Button type="submit" className="w-full" disabled={createAppointment.isPending || !!availError || !startTime}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={createAppointment.isPending || !!availError || !startTime || !professionalId || !selectedClientId}
+          >
             {createAppointment.isPending ? "Guardando..." : "Crear cita"}
           </Button>
         </form>
