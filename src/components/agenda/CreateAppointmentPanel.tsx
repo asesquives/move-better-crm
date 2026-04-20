@@ -474,15 +474,35 @@ export function CreateAppointmentPanel({
           {/* Paquete */}
           <div className="space-y-2">
             <Label>Paquete (opcional)</Label>
-            <Select value={packageId} onValueChange={setPackageId}>
+            <Select
+              value={packageId}
+              onValueChange={(v) => {
+                setPackageId(v);
+                if (v && v !== "none") {
+                  const pkg = clientPackages?.find((p) => p.id === v);
+                  if (pkg) {
+                    const pkgType = pkg.type as AppointmentType;
+                    if (sessionType !== pkgType) {
+                      setSessionType(pkgType);
+                      const label = SESSION_TYPE_COLORS[pkgType]?.label ?? pkgType;
+                      toast.info(`Tipo actualizado según el paquete seleccionado: ${label}`);
+                    }
+                  }
+                }
+              }}
+            >
               <SelectTrigger><SelectValue placeholder="Sin paquete" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sin paquete</SelectItem>
-                {clientPackages?.map((pkg) => (
-                  <SelectItem key={pkg.id} value={pkg.id}>
-                    {pkg.name} ({pkg.sessions_used}/{pkg.total_sessions} sesiones)
-                  </SelectItem>
-                ))}
+                {clientPackages?.map((pkg) => {
+                  const typeLabel = SESSION_TYPE_COLORS[pkg.type as AppointmentType]?.label ?? pkg.type;
+                  const remaining = pkg.total_sessions - pkg.sessions_used;
+                  return (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name} ({typeLabel}) — {remaining}/{pkg.total_sessions} restantes
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
