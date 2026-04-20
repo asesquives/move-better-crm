@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { addDays, endOfMonth, format } from "date-fns";
+import { ClientSearchOrCreate } from "@/components/clients/ClientSearchOrCreate";
 import type { Database } from "@/integrations/supabase/types";
 
 type PackageType = Database["public"]["Enums"]["package_type"];
