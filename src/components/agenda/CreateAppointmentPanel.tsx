@@ -173,14 +173,13 @@ export function CreateAppointmentPanel({ open, onOpenChange, defaultDate, defaul
       });
       if (error) throw error;
 
-      return { createdNewClient };
     },
-    onSuccess: ({ createdNewClient }) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
-      toast.success(createdNewClient ? "Cliente creado y cita agendada" : "Cita creada exitosamente");
+      toast.success("Cita creada exitosamente");
     },
     onError: (err: any) => {
       if (err.message === "DOUBLE_BOOKING") {
