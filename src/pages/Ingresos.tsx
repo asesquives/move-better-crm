@@ -44,13 +44,13 @@ export default function IngresosPage() {
     },
   });
 
-  // Revenue entries with appointment details for the table
+  // Revenue entries with appointment + package details for the table
   const { data: detailedEntries } = useQuery({
     queryKey: ["revenue-detailed", start, end],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("revenue_entries")
-        .select("*, clients(name), appointments(type, professionals(name))")
+        .select("*, clients(name), packages(name), appointments(type, professionals(name))")
         .gte("recognized_at", start)
         .lte("recognized_at", end)
         .order("recognized_at", { ascending: false });
