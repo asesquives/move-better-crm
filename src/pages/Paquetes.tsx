@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,21 +24,11 @@ export default function PaquetesPage() {
   const [catalogId, setCatalogId] = useState<string>("");
   const [form, setForm] = useState({
     client_id: "",
-    name: "",
-    type: "rehabilitation" as PackageType,
-    is_monthly_pass: false,
-    total_sessions: "10",
     total_paid: "0",
     payment_method: "cash" as PaymentMethod,
     receipt_type: "boleta" as ReceiptType,
     month_start: format(new Date(), "yyyy-MM"),
   });
-
-  const pricePerSession = useMemo(() => {
-    const paid = parseFloat(form.total_paid) || 0;
-    const sessions = parseInt(form.total_sessions) || 1;
-    return paid / sessions;
-  }, [form.total_paid, form.total_sessions]);
 
   const { data: packages, isLoading } = useQuery({
     queryKey: ["packages"],
@@ -47,15 +37,6 @@ export default function PaquetesPage() {
         .from("packages")
         .select("*, clients(name)")
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: clients } = useQuery({
-    queryKey: ["clients-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("id, name").order("name");
       if (error) throw error;
       return data;
     },
@@ -75,11 +56,32 @@ export default function PaquetesPage() {
     },
   });
 
-  // Map catalog program → package_type (skip 'diagnosis' since it's not a valid package_type)
+  // Selectable: only real packages (>1 session or monthly pass), exclude diagnosis (not a package_type)
   const selectableCatalog = useMemo(
-    () => catalog?.filter((c) => c.program !== "diagnosis") ?? [],
+    () =>
+      catalog?.filter(
+        (c) => c.program !== "diagnosis" && (c.is_monthly_pass || (c.sessions ?? 0) > 1)
+      ) ?? [],
     [catalog]
   );
+
+  const selectedCatalog = useMemo(
+    () => catalog?.find((c) => c.id === catalogId) ?? null,
+    [catalog, catalogId]
+  );
+
+  const totalSessions = useMemo(() => {
+    if (!selectedCatalog) return 0;
+    return selectedCatalog.sessions ?? 0;
+  }, [selectedCatalog]);
+
+  const pricePerSession = useMemo(() => {
+    const paid = parseFloat(form.total_paid) || 0;
+    if (selectedCatalog?.is_monthly_pass) {
+      return totalSessions > 0 ? paid / totalSessions : 0;
+    }
+    return totalSessions > 0 ? paid / totalSessions : 0;
+  }, [form.total_paid, totalSessions, selectedCatalog]);
 
   const handleCatalogSelect = (id: string) => {
     setCatalogId(id);
@@ -87,22 +89,33 @@ export default function PaquetesPage() {
     if (!item) return;
     setForm((f) => ({
       ...f,
-      name: item.name,
-      type: item.program as PackageType,
-      is_monthly_pass: item.is_monthly_pass,
-      total_sessions: item.sessions ? String(item.sessions) : f.total_sessions,
       total_paid: String(item.price),
     }));
   };
 
+  const resetForm = () => {
+    setCatalogId("");
+    setForm({
+      client_id: "",
+      total_paid: "0",
+      payment_method: "cash",
+      receipt_type: "boleta",
+      month_start: format(new Date(), "yyyy-MM"),
+    });
+  };
+
   const createPackage = useMutation({
     mutationFn: async () => {
-      const totalSessions = parseInt(form.total_sessions);
+      if (!selectedCatalog) throw new Error("Selecciona un paquete del catálogo");
+      if (!form.client_id) throw new Error("Selecciona un cliente");
+      const sessions = selectedCatalog.sessions ?? 0;
+      if (sessions <= 0) throw new Error("El paquete no tiene sesiones definidas");
+
       const totalPaid = parseFloat(form.total_paid);
-      const pps = totalPaid / totalSessions;
+      const pps = totalPaid / sessions;
 
       let expiresAt: string | null = null;
-      if (form.is_monthly_pass) {
+      if (selectedCatalog.is_monthly_pass) {
         const monthDate = new Date(form.month_start + "-01");
         expiresAt = endOfMonth(monthDate).toISOString();
       } else {
@@ -111,10 +124,10 @@ export default function PaquetesPage() {
 
       const { error } = await supabase.from("packages").insert({
         client_id: form.client_id,
-        name: form.name,
-        type: form.type,
-        is_monthly_pass: form.is_monthly_pass,
-        total_sessions: totalSessions,
+        name: selectedCatalog.name,
+        type: selectedCatalog.program as PackageType,
+        is_monthly_pass: selectedCatalog.is_monthly_pass,
+        total_sessions: sessions,
         total_paid: totalPaid,
         price_per_session: pps,
         payment_method: form.payment_method,
@@ -126,13 +139,7 @@ export default function PaquetesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["packages"] });
       setOpen(false);
-      setCatalogId("");
-      setForm({
-        client_id: "", name: "", type: "rehabilitation",
-        is_monthly_pass: false, total_sessions: "10", total_paid: "0",
-        payment_method: "cash", receipt_type: "boleta",
-        month_start: format(new Date(), "yyyy-MM"),
-      });
+      resetForm();
       toast.success("Paquete creado");
     },
     onError: (e: any) => toast.error(e.message),
@@ -159,9 +166,9 @@ export default function PaquetesPage() {
               />
 
               <div>
-                <Label>Paquete del catálogo</Label>
+                <Label>Paquete del catálogo *</Label>
                 <Select value={catalogId} onValueChange={handleCatalogSelect}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar del catálogo (opcional)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar paquete" /></SelectTrigger>
                   <SelectContent>
                     {selectableCatalog.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
@@ -170,51 +177,46 @@ export default function PaquetesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Auto-rellena nombre, precio y sesiones.</p>
               </div>
 
-              <div><Label>Nombre del paquete *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-
-              <div>
-                <Label>Tipo</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as PackageType })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="rehabilitation">Rehabilitación</SelectItem>
-                    <SelectItem value="prehabilitation">Prehabilitación</SelectItem>
-                    <SelectItem value="recovery">Recuperación</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>¿Es monthly pass?</Label>
-                <Switch checked={form.is_monthly_pass} onCheckedChange={(v) => setForm({ ...form, is_monthly_pass: v })} />
-              </div>
-
-              {!form.is_monthly_pass ? (
-                <div>
-                  <Label>Número de sesiones</Label>
-                  <Select value={form.total_sessions} onValueChange={(v) => setForm({ ...form, total_sessions: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 sesiones</SelectItem>
-                      <SelectItem value="10">10 sesiones</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {selectedCatalog && (
+                <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">Sesiones incluidas:</span>{" "}
+                    <span className="font-semibold">
+                      {selectedCatalog.is_monthly_pass
+                        ? `${totalSessions} (pase mensual)`
+                        : totalSessions}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Precio por sesión:</span>{" "}
+                    <span className="font-semibold">S/ {pricePerSession.toFixed(2)}</span>
+                  </p>
                 </div>
-              ) : (
+              )}
+
+              {selectedCatalog?.is_monthly_pass && (
                 <div>
                   <Label>Mes del pase</Label>
                   <Input type="month" value={form.month_start} onChange={(e) => setForm({ ...form, month_start: e.target.value })} />
                 </div>
               )}
 
-              <div><Label>Total pagado (S/)</Label><Input type="number" step="0.01" value={form.total_paid} onChange={(e) => setForm({ ...form, total_paid: e.target.value })} /></div>
-
-              <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                <span className="text-muted-foreground">Precio por sesión:</span>{" "}
-                <span className="font-semibold">S/ {pricePerSession.toFixed(2)}</span>
+              <div>
+                <Label>Total pagado (S/)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.total_paid}
+                  onChange={(e) => setForm({ ...form, total_paid: e.target.value })}
+                  disabled={!selectedCatalog}
+                />
+                {selectedCatalog && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sugerido: S/ {Number(selectedCatalog.price).toFixed(2)}. Edita si el cliente negoció otro precio.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -241,17 +243,13 @@ export default function PaquetesPage() {
                 </div>
               </div>
 
-              {form.is_monthly_pass && (
-                <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground">
-                  Sesiones para monthly pass: ingresa el total de sesiones incluidas en el mes.
-                  <div className="mt-2">
-                    <Label className="text-xs">Sesiones incluidas</Label>
-                    <Input type="number" value={form.total_sessions} onChange={(e) => setForm({ ...form, total_sessions: e.target.value })} className="mt-1" />
-                  </div>
-                </div>
-              )}
-
-              <Button type="submit" className="w-full" disabled={createPackage.isPending}>Guardar</Button>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={createPackage.isPending || !selectedCatalog || !form.client_id}
+              >
+                Guardar
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
