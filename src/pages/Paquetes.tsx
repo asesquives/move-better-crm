@@ -24,21 +24,11 @@ export default function PaquetesPage() {
   const [catalogId, setCatalogId] = useState<string>("");
   const [form, setForm] = useState({
     client_id: "",
-    name: "",
-    type: "rehabilitation" as PackageType,
-    is_monthly_pass: false,
-    total_sessions: "10",
     total_paid: "0",
     payment_method: "cash" as PaymentMethod,
     receipt_type: "boleta" as ReceiptType,
     month_start: format(new Date(), "yyyy-MM"),
   });
-
-  const pricePerSession = useMemo(() => {
-    const paid = parseFloat(form.total_paid) || 0;
-    const sessions = parseInt(form.total_sessions) || 1;
-    return paid / sessions;
-  }, [form.total_paid, form.total_sessions]);
 
   const { data: packages, isLoading } = useQuery({
     queryKey: ["packages"],
@@ -47,15 +37,6 @@ export default function PaquetesPage() {
         .from("packages")
         .select("*, clients(name)")
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: clients } = useQuery({
-    queryKey: ["clients-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("id, name").order("name");
       if (error) throw error;
       return data;
     },
@@ -75,11 +56,32 @@ export default function PaquetesPage() {
     },
   });
 
-  // Map catalog program → package_type (skip 'diagnosis' since it's not a valid package_type)
+  // Selectable: only real packages (>1 session or monthly pass), exclude diagnosis (not a package_type)
   const selectableCatalog = useMemo(
-    () => catalog?.filter((c) => c.program !== "diagnosis") ?? [],
+    () =>
+      catalog?.filter(
+        (c) => c.program !== "diagnosis" && (c.is_monthly_pass || (c.sessions ?? 0) > 1)
+      ) ?? [],
     [catalog]
   );
+
+  const selectedCatalog = useMemo(
+    () => catalog?.find((c) => c.id === catalogId) ?? null,
+    [catalog, catalogId]
+  );
+
+  const totalSessions = useMemo(() => {
+    if (!selectedCatalog) return 0;
+    return selectedCatalog.sessions ?? 0;
+  }, [selectedCatalog]);
+
+  const pricePerSession = useMemo(() => {
+    const paid = parseFloat(form.total_paid) || 0;
+    if (selectedCatalog?.is_monthly_pass) {
+      return totalSessions > 0 ? paid / totalSessions : 0;
+    }
+    return totalSessions > 0 ? paid / totalSessions : 0;
+  }, [form.total_paid, totalSessions, selectedCatalog]);
 
   const handleCatalogSelect = (id: string) => {
     setCatalogId(id);
@@ -87,22 +89,33 @@ export default function PaquetesPage() {
     if (!item) return;
     setForm((f) => ({
       ...f,
-      name: item.name,
-      type: item.program as PackageType,
-      is_monthly_pass: item.is_monthly_pass,
-      total_sessions: item.sessions ? String(item.sessions) : f.total_sessions,
       total_paid: String(item.price),
     }));
   };
 
+  const resetForm = () => {
+    setCatalogId("");
+    setForm({
+      client_id: "",
+      total_paid: "0",
+      payment_method: "cash",
+      receipt_type: "boleta",
+      month_start: format(new Date(), "yyyy-MM"),
+    });
+  };
+
   const createPackage = useMutation({
     mutationFn: async () => {
-      const totalSessions = parseInt(form.total_sessions);
+      if (!selectedCatalog) throw new Error("Selecciona un paquete del catálogo");
+      if (!form.client_id) throw new Error("Selecciona un cliente");
+      const sessions = selectedCatalog.sessions ?? 0;
+      if (sessions <= 0) throw new Error("El paquete no tiene sesiones definidas");
+
       const totalPaid = parseFloat(form.total_paid);
-      const pps = totalPaid / totalSessions;
+      const pps = totalPaid / sessions;
 
       let expiresAt: string | null = null;
-      if (form.is_monthly_pass) {
+      if (selectedCatalog.is_monthly_pass) {
         const monthDate = new Date(form.month_start + "-01");
         expiresAt = endOfMonth(monthDate).toISOString();
       } else {
@@ -111,10 +124,10 @@ export default function PaquetesPage() {
 
       const { error } = await supabase.from("packages").insert({
         client_id: form.client_id,
-        name: form.name,
-        type: form.type,
-        is_monthly_pass: form.is_monthly_pass,
-        total_sessions: totalSessions,
+        name: selectedCatalog.name,
+        type: selectedCatalog.program as PackageType,
+        is_monthly_pass: selectedCatalog.is_monthly_pass,
+        total_sessions: sessions,
         total_paid: totalPaid,
         price_per_session: pps,
         payment_method: form.payment_method,
@@ -126,13 +139,7 @@ export default function PaquetesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["packages"] });
       setOpen(false);
-      setCatalogId("");
-      setForm({
-        client_id: "", name: "", type: "rehabilitation",
-        is_monthly_pass: false, total_sessions: "10", total_paid: "0",
-        payment_method: "cash", receipt_type: "boleta",
-        month_start: format(new Date(), "yyyy-MM"),
-      });
+      resetForm();
       toast.success("Paquete creado");
     },
     onError: (e: any) => toast.error(e.message),
