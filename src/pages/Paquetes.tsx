@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { addDays, endOfMonth, format } from "date-fns";
+import { ClientSearchOrCreate } from "@/components/clients/ClientSearchOrCreate";
 import type { Database } from "@/integrations/supabase/types";
 
 type PackageType = Database["public"]["Enums"]["package_type"];
@@ -151,13 +152,11 @@ export default function PaquetesPage() {
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Nuevo paquete</DialogTitle></DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); createPackage.mutate(); }} className="space-y-4">
-              <div>
-                <Label>Cliente *</Label>
-                <Select value={form.client_id} onValueChange={(v) => setForm({ ...form, client_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
-                  <SelectContent>{clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+              <ClientSearchOrCreate
+                value={form.client_id || null}
+                onChange={(id) => setForm({ ...form, client_id: id ?? "" })}
+                required
+              />
 
               <div>
                 <Label>Paquete del catálogo</Label>
