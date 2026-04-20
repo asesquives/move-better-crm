@@ -20,6 +20,7 @@ type ReceiptType = Database["public"]["Enums"]["receipt_type"];
 export default function PaquetesPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [catalogId, setCatalogId] = useState<string>("");
   const [form, setForm] = useState({
     client_id: "",
     name: "",
@@ -59,6 +60,40 @@ export default function PaquetesPage() {
     },
   });
 
+  const { data: catalog } = useQuery({
+    queryKey: ["package_catalog_active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("package_catalog")
+        .select("*")
+        .eq("is_active", true)
+        .order("program")
+        .order("price");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Map catalog program → package_type (skip 'diagnosis' since it's not a valid package_type)
+  const selectableCatalog = useMemo(
+    () => catalog?.filter((c) => c.program !== "diagnosis") ?? [],
+    [catalog]
+  );
+
+  const handleCatalogSelect = (id: string) => {
+    setCatalogId(id);
+    const item = catalog?.find((c) => c.id === id);
+    if (!item) return;
+    setForm((f) => ({
+      ...f,
+      name: item.name,
+      type: item.program as PackageType,
+      is_monthly_pass: item.is_monthly_pass,
+      total_sessions: item.sessions ? String(item.sessions) : f.total_sessions,
+      total_paid: String(item.price),
+    }));
+  };
+
   const createPackage = useMutation({
     mutationFn: async () => {
       const totalSessions = parseInt(form.total_sessions);
@@ -67,11 +102,9 @@ export default function PaquetesPage() {
 
       let expiresAt: string | null = null;
       if (form.is_monthly_pass) {
-        // End of the selected month
         const monthDate = new Date(form.month_start + "-01");
         expiresAt = endOfMonth(monthDate).toISOString();
       } else {
-        // 90 days from now
         expiresAt = addDays(new Date(), 90).toISOString();
       }
 
@@ -92,6 +125,7 @@ export default function PaquetesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["packages"] });
       setOpen(false);
+      setCatalogId("");
       setForm({
         client_id: "", name: "", type: "rehabilitation",
         is_monthly_pass: false, total_sessions: "10", total_paid: "0",
