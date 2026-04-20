@@ -12,8 +12,7 @@ export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
-  const [selectedSlotHour, setSelectedSlotHour] = useState<number | null>(null);
+  const [preselectedSlot, setPreselectedSlot] = useState<{ date: string; startTime: string; endTime: string } | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
 
   // Week starts on Monday
@@ -23,8 +22,10 @@ export default function AgendaPage() {
   const { data: appointments, isLoading } = useWeekAppointments(weekStart);
 
   const handleSlotClick = (date: Date, hour: number) => {
-    setSelectedSlotDate(date);
-    setSelectedSlotHour(hour);
+    const dateStr = format(date, "yyyy-MM-dd");
+    const startTime = `${hour.toString().padStart(2, "0")}:00`;
+    const endTime = `${(hour + 1).toString().padStart(2, "0")}:00`;
+    setPreselectedSlot({ date: dateStr, startTime, endTime });
     setCreateOpen(true);
   };
 
@@ -58,8 +59,7 @@ export default function AgendaPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button size="sm" onClick={() => {
-            setSelectedSlotDate(new Date());
-            setSelectedSlotHour(new Date().getHours());
+            setPreselectedSlot(null);
             setCreateOpen(true);
           }}>
             <Plus className="h-4 w-4 mr-1" /> Nueva cita
@@ -92,8 +92,7 @@ export default function AgendaPage() {
       <CreateAppointmentPanel
         open={createOpen}
         onOpenChange={setCreateOpen}
-        defaultDate={selectedSlotDate}
-        defaultHour={selectedSlotHour}
+        preselectedSlot={preselectedSlot}
       />
       <AppointmentDetailPanel
         open={detailOpen}
