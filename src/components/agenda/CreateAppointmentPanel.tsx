@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useClientPackages, useProfessionals, useAvailabilityBlocks } from "@/hooks/useAgendaData";
 import { SESSION_TYPE_COLORS, AppointmentType } from "@/lib/agenda-constants";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { AlertTriangle, Info } from "lucide-react";
 import { ClientSearchOrCreate } from "@/components/clients/ClientSearchOrCreate";
@@ -363,9 +364,27 @@ export function CreateAppointmentPanel({
 
           {/* Tipo de sesión */}
           <div className="space-y-2">
-            <Label>Tipo de sesión *</Label>
-            <Select value={sessionType} onValueChange={(v) => setSessionType(v as AppointmentType)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Label className="flex items-center gap-2">
+              Tipo de sesión *
+              {packageId && packageId !== "none" && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground font-normal">
+                  <Lock className="h-3 w-3" />
+                  Definido por el paquete
+                </span>
+              )}
+            </Label>
+            <Select
+              value={sessionType}
+              onValueChange={(v) => setSessionType(v as AppointmentType)}
+              disabled={!!packageId && packageId !== "none"}
+            >
+              <SelectTrigger
+                className={cn(
+                  packageId && packageId !== "none" && "bg-muted cursor-not-allowed opacity-80"
+                )}
+              >
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {Object.entries(SESSION_TYPE_COLORS).map(([key, val]) => (
                   <SelectItem key={key} value={key}>
@@ -455,15 +474,35 @@ export function CreateAppointmentPanel({
           {/* Paquete */}
           <div className="space-y-2">
             <Label>Paquete (opcional)</Label>
-            <Select value={packageId} onValueChange={setPackageId}>
+            <Select
+              value={packageId}
+              onValueChange={(v) => {
+                setPackageId(v);
+                if (v && v !== "none") {
+                  const pkg = clientPackages?.find((p) => p.id === v);
+                  if (pkg) {
+                    const pkgType = pkg.type as AppointmentType;
+                    if (sessionType !== pkgType) {
+                      setSessionType(pkgType);
+                      const label = SESSION_TYPE_COLORS[pkgType]?.label ?? pkgType;
+                      toast.info(`Tipo actualizado según el paquete seleccionado: ${label}`);
+                    }
+                  }
+                }
+              }}
+            >
               <SelectTrigger><SelectValue placeholder="Sin paquete" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sin paquete</SelectItem>
-                {clientPackages?.map((pkg) => (
-                  <SelectItem key={pkg.id} value={pkg.id}>
-                    {pkg.name} ({pkg.sessions_used}/{pkg.total_sessions} sesiones)
-                  </SelectItem>
-                ))}
+                {clientPackages?.map((pkg) => {
+                  const typeLabel = SESSION_TYPE_COLORS[pkg.type as AppointmentType]?.label ?? pkg.type;
+                  const remaining = pkg.total_sessions - pkg.sessions_used;
+                  return (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name} ({typeLabel}) — {remaining}/{pkg.total_sessions} restantes
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
