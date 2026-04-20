@@ -364,9 +364,27 @@ export function CreateAppointmentPanel({
 
           {/* Tipo de sesión */}
           <div className="space-y-2">
-            <Label>Tipo de sesión *</Label>
-            <Select value={sessionType} onValueChange={(v) => setSessionType(v as AppointmentType)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Label className="flex items-center gap-2">
+              Tipo de sesión *
+              {packageId && packageId !== "none" && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground font-normal">
+                  <Lock className="h-3 w-3" />
+                  Definido por el paquete
+                </span>
+              )}
+            </Label>
+            <Select
+              value={sessionType}
+              onValueChange={(v) => setSessionType(v as AppointmentType)}
+              disabled={!!packageId && packageId !== "none"}
+            >
+              <SelectTrigger
+                className={cn(
+                  packageId && packageId !== "none" && "bg-muted cursor-not-allowed opacity-80"
+                )}
+              >
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {Object.entries(SESSION_TYPE_COLORS).map(([key, val]) => (
                   <SelectItem key={key} value={key}>
