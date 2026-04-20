@@ -9,11 +9,6 @@ import { SESSION_TYPE_COLORS, STATUS_LABELS, STATUS_COLORS, AppointmentType, App
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-const LOOSE_SESSION_PRICES: Record<string, number> = {
-  medical_diagnosis: 200,
-  physio_diagnosis: 150,
-};
-
 interface AppointmentDetailPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,68 +30,25 @@ export function AppointmentDetailPanel({ open, onOpenChange, appointment }: Appo
   const queryClient = useQueryClient();
   const [noShowDialog, setNoShowDialog] = useState(false);
 
-  const processRevenue = async (appointmentId: string, clientId: string, packageId: string | null, appointmentType: string) => {
-    let revenueAmount = 0;
-
-    if (packageId) {
-      // Fetch package to calculate per-session amount
-      const { data: pkg, error: pkgErr } = await supabase
-        .from("packages")
-        .select("*")
-        .eq("id", packageId)
-        .single();
-      if (pkgErr) throw pkgErr;
-
-      revenueAmount = Number(pkg.total_paid) / pkg.total_sessions;
-
-      // Increment sessions_used
-      const newUsed = pkg.sessions_used + 1;
-      const updates: any = { sessions_used: newUsed };
-      if (newUsed >= pkg.total_sessions) {
-        updates.status = "completed";
-      }
-      const { error: updErr } = await supabase.from("packages").update(updates).eq("id", packageId);
-      if (updErr) throw updErr;
-    } else {
-      // Loose session
-      revenueAmount = LOOSE_SESSION_PRICES[appointmentType] || 0;
-    }
-
-    // Update appointment revenue_amount
-    await supabase.from("appointments").update({ revenue_amount: revenueAmount }).eq("id", appointmentId);
-
-    // Create revenue entry
-    if (revenueAmount > 0) {
-      const { error: revErr } = await supabase.from("revenue_entries").insert({
-        appointment_id: appointmentId,
-        client_id: clientId,
-        package_id: packageId,
-        amount: revenueAmount,
-        recognized_at: new Date().toISOString(),
-      });
-      if (revErr) throw revErr;
-    }
-  };
-
   const updateStatus = useMutation({
     mutationFn: async (newStatus: AppointmentStatus) => {
       if (!appointment) return;
+      // Revenue & package side-effects are handled by the DB trigger
+      // `handle_revenue_on_session_done` when status changes to 'done'.
       const { error } = await supabase
         .from("appointments")
         .update({ status: newStatus })
         .eq("id", appointment.id);
       if (error) throw error;
-
-      // Revenue logic: only when marking as done
-      if (newStatus === "done") {
-        await processRevenue(appointment.id, appointment.client_id, appointment.package_id, appointment.type);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["week-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["packages"] });
       queryClient.invalidateQueries({ queryKey: ["revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-detailed"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-all"] });
       toast.success("Estado actualizado");
     },
     onError: (err: any) => toast.error(err.message),

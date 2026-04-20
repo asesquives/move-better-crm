@@ -44,13 +44,13 @@ export default function IngresosPage() {
     },
   });
 
-  // Revenue entries with appointment details for the table
+  // Revenue entries with appointment + package details for the table
   const { data: detailedEntries } = useQuery({
     queryKey: ["revenue-detailed", start, end],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("revenue_entries")
-        .select("*, clients(name), appointments(type, professionals(name))")
+        .select("*, clients(name), packages(name), appointments(type, professionals(name))")
         .gte("recognized_at", start)
         .lte("recognized_at", end)
         .order("recognized_at", { ascending: false });
@@ -79,7 +79,7 @@ export default function IngresosPage() {
 
   const exportCSV = () => {
     if (!detailedEntries?.length) return;
-    const headers = ["Fecha", "Cliente", "Tipo de sesión", "Profesional", "Monto"];
+    const headers = ["Fecha", "Cliente", "Tipo de sesión", "Profesional", "Paquete", "Monto"];
     const rows = detailedEntries.map((e) => {
       const appt = e.appointments as any;
       const typeConfig = appt?.type ? SESSION_TYPE_COLORS[appt.type as keyof typeof SESSION_TYPE_COLORS] : null;
@@ -88,6 +88,7 @@ export default function IngresosPage() {
         (e.clients as any)?.name || "—",
         typeConfig?.label || appt?.type || "—",
         appt?.professionals?.name || "—",
+        (e.packages as any)?.name || "Sesión suelta",
         Number(e.amount).toFixed(2),
       ];
     });
@@ -165,12 +166,14 @@ export default function IngresosPage() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Profesional</TableHead>
+                <TableHead>Paquete</TableHead>
                 <TableHead className="text-right">Monto</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {detailedEntries.map((e) => {
                 const appt = e.appointments as any;
+                const pkg = e.packages as any;
                 const typeConfig = appt?.type ? SESSION_TYPE_COLORS[appt.type as keyof typeof SESSION_TYPE_COLORS] : null;
                 return (
                   <TableRow key={e.id}>
@@ -185,6 +188,7 @@ export default function IngresosPage() {
                       ) : "—"}
                     </TableCell>
                     <TableCell className="text-sm">{appt?.professionals?.name || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{pkg?.name || <span className="italic">Sesión suelta</span>}</TableCell>
                     <TableCell className="text-right font-semibold text-sm">S/ {Number(e.amount).toFixed(2)}</TableCell>
                   </TableRow>
                 );
