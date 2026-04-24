@@ -157,7 +157,7 @@ export default function BusinessTrends() {
 
         <div className="bg-card border rounded-lg p-5">
           <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold">Citas por mes</h3>
+            <h3 className="text-sm font-semibold">Citas por {granularity === "month" ? "mes" : "semana"}</h3>
             <span className="text-sm font-bold tabular-nums">{totalAppts} citas</span>
           </div>
           <div className="h-56">
