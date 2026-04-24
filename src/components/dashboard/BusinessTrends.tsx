@@ -127,7 +127,7 @@ export default function BusinessTrends() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-card border rounded-lg p-5">
           <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold">Ingresos por mes</h3>
+            <h3 className="text-sm font-semibold">Ingresos por {granularity === "month" ? "mes" : "semana"}</h3>
             <span className="text-sm font-bold tabular-nums">{formatCurrency(totalRevenue)}</span>
           </div>
           <div className="h-56">
