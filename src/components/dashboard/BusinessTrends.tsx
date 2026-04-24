@@ -109,9 +109,19 @@ export default function BusinessTrends() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-lg font-semibold">Tendencias del negocio</h2>
-        <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            {granularity === "month" ? "Últimos 6 meses" : "Últimas 8 semanas"}
+          </p>
+          <Tabs value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
+            <TabsList className="h-8">
+              <TabsTrigger value="week" className="text-xs h-6">Semana</TabsTrigger>
+              <TabsTrigger value="month" className="text-xs h-6">Mes</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
