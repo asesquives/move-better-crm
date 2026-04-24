@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -11,10 +12,13 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { format, startOfMonth, subMonths } from "date-fns";
+import { format, startOfMonth, subMonths, startOfWeek, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface MonthBucket {
+type Granularity = "week" | "month";
+
+interface Bucket {
   key: string;
   label: string;
   revenue: number;
@@ -28,7 +32,7 @@ const formatCurrency = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-function buildEmptyMonths(): MonthBucket[] {
+function buildEmptyMonths(): Bucket[] {
   const now = new Date();
   return Array.from({ length: 6 }).map((_, i) => {
     const d = startOfMonth(subMonths(now, 5 - i));
@@ -41,45 +45,65 @@ function buildEmptyMonths(): MonthBucket[] {
   });
 }
 
+function buildEmptyWeeks(): Bucket[] {
+  const now = new Date();
+  return Array.from({ length: 8 }).map((_, i) => {
+    const d = startOfWeek(subWeeks(now, 7 - i), { weekStartsOn: 1 });
+    return {
+      key: format(d, "yyyy-'W'II"),
+      label: format(d, "d MMM", { locale: es }),
+      revenue: 0,
+      appointments: 0,
+    };
+  });
+}
+
 export default function BusinessTrends() {
-  const sixMonthsAgo = startOfMonth(subMonths(new Date(), 5)).toISOString();
+  const [granularity, setGranularity] = useState<Granularity>("month");
+
+  const rangeStart =
+    granularity === "month"
+      ? startOfMonth(subMonths(new Date(), 5)).toISOString()
+      : startOfWeek(subWeeks(new Date(), 7), { weekStartsOn: 1 }).toISOString();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["business-trends-6m"],
+    queryKey: ["business-trends", granularity],
     queryFn: async () => {
       const [revenueRes, apptsRes] = await Promise.all([
         supabase
           .from("revenue_entries")
           .select("amount, recognized_at")
-          .gte("recognized_at", sixMonthsAgo),
+          .gte("recognized_at", rangeStart),
         supabase
           .from("appointments")
           .select("start_time, status")
-          .gte("start_time", sixMonthsAgo)
+          .gte("start_time", rangeStart)
           .neq("status", "cancelled"),
       ]);
 
       if (revenueRes.error) throw revenueRes.error;
       if (apptsRes.error) throw apptsRes.error;
 
-      const buckets = buildEmptyMonths();
+      const buckets = granularity === "month" ? buildEmptyMonths() : buildEmptyWeeks();
       const idx = new Map(buckets.map((b, i) => [b.key, i]));
+      const keyFor = (d: Date) =>
+        granularity === "month"
+          ? format(d, "yyyy-MM")
+          : format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-'W'II");
 
       for (const r of revenueRes.data ?? []) {
-        const k = format(new Date(r.recognized_at), "yyyy-MM");
-        const i = idx.get(k);
+        const i = idx.get(keyFor(new Date(r.recognized_at)));
         if (i !== undefined) buckets[i].revenue += Number(r.amount ?? 0);
       }
       for (const a of apptsRes.data ?? []) {
-        const k = format(new Date(a.start_time), "yyyy-MM");
-        const i = idx.get(k);
+        const i = idx.get(keyFor(new Date(a.start_time)));
         if (i !== undefined) buckets[i].appointments += 1;
       }
       return buckets;
     },
   });
 
-  const buckets = data ?? buildEmptyMonths();
+  const buckets = data ?? (granularity === "month" ? buildEmptyMonths() : buildEmptyWeeks());
   const totalRevenue = buckets.reduce((sum, b) => sum + b.revenue, 0);
   const totalAppts = buckets.reduce((sum, b) => sum + b.appointments, 0);
 
