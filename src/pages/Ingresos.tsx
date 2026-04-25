@@ -19,14 +19,24 @@ export default function IngresosPage() {
   const [customEnd, setCustomEnd] = useState(format(new Date(), "yyyy-MM-dd"));
 
   const { start, end } = useMemo(() => {
+    const fallback = new Date();
+    const safeIso = (d: Date) => (isNaN(d.getTime()) ? fallback.toISOString() : d.toISOString());
+
     if (filterType === "month") {
-      const d = new Date(month + "-01");
-      return { start: startOfMonth(d).toISOString(), end: endOfMonth(d).toISOString() };
+      const d = month ? new Date(month + "-01") : fallback;
+      const base = isNaN(d.getTime()) ? fallback : d;
+      return { start: safeIso(startOfMonth(base)), end: safeIso(endOfMonth(base)) };
     } else if (filterType === "week") {
-      const d = new Date(month + "-01");
-      return { start: startOfWeek(d, { weekStartsOn: 1 }).toISOString(), end: endOfWeek(d, { weekStartsOn: 1 }).toISOString() };
+      const d = month ? new Date(month + "-01") : fallback;
+      const base = isNaN(d.getTime()) ? fallback : d;
+      return {
+        start: safeIso(startOfWeek(base, { weekStartsOn: 1 })),
+        end: safeIso(endOfWeek(base, { weekStartsOn: 1 })),
+      };
     }
-    return { start: new Date(customStart).toISOString(), end: new Date(customEnd + "T23:59:59").toISOString() };
+    const s = customStart ? new Date(customStart) : fallback;
+    const e = customEnd ? new Date(customEnd + "T23:59:59") : fallback;
+    return { start: safeIso(s), end: safeIso(e) };
   }, [filterType, month, customStart, customEnd]);
 
   // Revenue entries (devengado)
