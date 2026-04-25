@@ -9,7 +9,7 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 
-export type PeriodMode = "general" | "month" | "week";
+export type PeriodMode = "month" | "week";
 
 export interface DashboardPeriod {
   mode: PeriodMode;
@@ -36,7 +36,7 @@ export function getPeriodRange(period: DashboardPeriod): PeriodRange {
       granularity: "week",
     };
   }
-  // general & month both bound to a calendar month
+  // month mode bound to a calendar month
   const start = startOfMonth(date);
   const end = endOfMonth(date);
   return {
