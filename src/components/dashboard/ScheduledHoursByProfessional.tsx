@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -9,15 +8,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { es } from "date-fns/locale";
+import { DashboardPeriod, getPeriodRange } from "@/lib/dashboard-period";
 
 /**
  * Palette derived from the brand red #CC2222.
@@ -47,32 +38,18 @@ const TYPE_LABELS: Record<string, string> = {
   evaluator: "Evaluador",
 };
 
-/** Build the last 12 months (current first) for the period selector. */
-function buildMonthOptions() {
-  return Array.from({ length: 12 }).map((_, i) => {
-    const d = startOfMonth(subMonths(new Date(), i));
-    return {
-      value: format(d, "yyyy-MM"),
-      label: format(d, "MMMM yyyy", { locale: es }),
-    };
-  });
+interface Props {
+  period: DashboardPeriod;
 }
 
-export default function ScheduledHoursByProfessional() {
-  const [period, setPeriod] = useState(() => format(new Date(), "yyyy-MM"));
-  const monthOptions = useMemo(buildMonthOptions, []);
-
-  const { rangeStart, rangeEnd } = useMemo(() => {
-    const [y, m] = period.split("-").map(Number);
-    const base = new Date(y, m - 1, 1);
-    return {
-      rangeStart: startOfMonth(base).toISOString(),
-      rangeEnd: endOfMonth(base).toISOString(),
-    };
-  }, [period]);
+export default function ScheduledHoursByProfessional({ period }: Props) {
+  const range = getPeriodRange(period);
+  const rangeStart = range.start.toISOString();
+  const rangeEnd = range.end.toISOString();
+  const periodLabel = range.label;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["scheduled-hours-by-professional", period],
+    queryKey: ["scheduled-hours-by-professional", rangeStart, rangeEnd],
     queryFn: async (): Promise<ProfessionalHours[]> => {
       const [apptsRes, profsRes] = await Promise.all([
         supabase
@@ -115,19 +92,9 @@ export default function ScheduledHoursByProfessional() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h2 className="text-lg font-semibold">Horas agendadas este mes</h2>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-full sm:w-[220px] capitalize">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {monthOptions.map((m) => (
-              <SelectItem key={m.value} value={m.value} className="capitalize">
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <h2 className="text-lg font-semibold capitalize">
+          Horas agendadas — {periodLabel}
+        </h2>
       </div>
 
       <div className="bg-card border rounded-lg p-5 space-y-6">
