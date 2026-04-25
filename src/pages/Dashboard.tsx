@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar, Users, Package, DollarSign, Clock, UserCog } from "lucide-react";
@@ -7,21 +8,28 @@ import { es } from "date-fns/locale";
 import TopClients from "@/components/dashboard/TopClients";
 import BusinessTrends from "@/components/dashboard/BusinessTrends";
 import ScheduledHoursByProfessional from "@/components/dashboard/ScheduledHoursByProfessional";
+import PeriodSelector from "@/components/dashboard/PeriodSelector";
+import { DashboardPeriod, getPeriodRange } from "@/lib/dashboard-period";
 
 export default function Dashboard() {
   const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-  const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+  const [period, setPeriod] = useState<DashboardPeriod>({
+    mode: "general",
+    date: new Date(),
+  });
+  const range = getPeriodRange(period);
+  const rangeStartIso = range.start.toISOString();
+  const rangeEndIso = range.end.toISOString();
 
-  const { data: todayAppointments } = useQuery({
-    queryKey: ["appointments-today"],
+  const { data: periodAppointments } = useQuery({
+    queryKey: ["appointments-period", rangeStartIso, rangeEndIso],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, clients(name), professionals(name)")
-        .gte("start_time", todayStart)
-        .lt("start_time", todayEnd)
-        .order("start_time");
+        .select("id")
+        .gte("start_time", rangeStartIso)
+        .lte("start_time", rangeEndIso)
+        .neq("status", "cancelled");
       if (error) throw error;
       return data;
     },
@@ -56,18 +64,26 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground capitalize">
-          {format(today, "EEEE, d 'de' MMMM yyyy", { locale: es })}
-        </p>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground capitalize">
+            {format(today, "EEEE, d 'de' MMMM yyyy", { locale: es })}
+          </p>
+        </div>
+        <div className="flex flex-col items-start lg:items-end gap-1">
+          <PeriodSelector value={period} onChange={setPeriod} />
+          <p className="text-xs text-muted-foreground capitalize">
+            Período: {range.label}
+          </p>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-card rounded-lg border p-5">
-          <p className="text-sm text-muted-foreground">Citas hoy</p>
-          <p className="text-3xl font-bold mt-1">{todayAppointments?.length ?? 0}</p>
+          <p className="text-sm text-muted-foreground">Citas del período</p>
+          <p className="text-3xl font-bold mt-1">{periodAppointments?.length ?? 0}</p>
         </div>
         <div className="bg-card rounded-lg border p-5">
           <p className="text-sm text-muted-foreground">Clientes totales</p>
@@ -80,35 +96,13 @@ export default function Dashboard() {
       </div>
 
       {/* Business trends */}
-      <BusinessTrends />
+      <BusinessTrends period={period} />
 
       {/* Scheduled hours by professional */}
-      <ScheduledHoursByProfessional />
+      <ScheduledHoursByProfessional period={period} />
 
       {/* Top clients */}
       <TopClients />
-
-      {/* Today's appointments */}
-      {todayAppointments && todayAppointments.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Citas de hoy</h2>
-          <div className="space-y-2">
-            {todayAppointments.map((apt) => (
-              <div key={apt.id} className="bg-card rounded-lg border p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{(apt.clients as any)?.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(apt.start_time), "HH:mm")} - {format(new Date(apt.end_time), "HH:mm")} · {(apt.professionals as any)?.name || "Sin asignar"}
-                  </p>
-                </div>
-                <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium capitalize">
-                  {apt.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Quick links */}
       <div>
