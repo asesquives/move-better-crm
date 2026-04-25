@@ -14,7 +14,7 @@ import { DashboardPeriod, getPeriodRange } from "@/lib/dashboard-period";
 export default function Dashboard() {
   const today = new Date();
   const [period, setPeriod] = useState<DashboardPeriod>({
-    mode: "general",
+    mode: "month",
     date: new Date(),
   });
   const range = getPeriodRange(period);

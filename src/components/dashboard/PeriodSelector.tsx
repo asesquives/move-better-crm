@@ -31,9 +31,7 @@ export default function PeriodSelector({ value, onChange }: Props) {
   );
 
   const handleMode = (mode: PeriodMode) => {
-    if (mode === "general") {
-      onChange({ mode: "general", date: new Date() });
-    } else if (mode === "month") {
+    if (mode === "month") {
       onChange({ mode: "month", date: startOfMonth(new Date()) });
     } else {
       onChange({
@@ -47,7 +45,6 @@ export default function PeriodSelector({ value, onChange }: Props) {
     <div className="flex items-center gap-2 flex-wrap">
       <Tabs value={value.mode} onValueChange={(v) => handleMode(v as PeriodMode)}>
         <TabsList className="h-9">
-          <TabsTrigger value="general" className="text-xs">General</TabsTrigger>
           <TabsTrigger value="month" className="text-xs">Mes</TabsTrigger>
           <TabsTrigger value="week" className="text-xs">Semana</TabsTrigger>
         </TabsList>
