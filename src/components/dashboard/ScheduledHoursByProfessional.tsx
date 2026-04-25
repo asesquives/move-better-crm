@@ -172,7 +172,7 @@ export default function ScheduledHoursByProfessional({ period }: Props) {
                     <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="py-2 font-medium">Profesional</th>
                       <th className="py-2 font-medium">Tipo</th>
-                      <th className="py-2 font-medium text-right">Horas del mes</th>
+                      <th className="py-2 font-medium text-right">Horas</th>
                       <th className="py-2 font-medium text-right">% del total</th>
                     </tr>
                   </thead>
