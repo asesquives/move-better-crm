@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -12,11 +11,17 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { format, startOfMonth, subMonths, startOfWeek, subWeeks } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  subWeeks,
+} from "date-fns";
 import { es } from "date-fns/locale";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-type Granularity = "week" | "month";
+import { DashboardPeriod, getPeriodRange } from "@/lib/dashboard-period";
 
 interface Bucket {
   key: string;
@@ -32,59 +37,71 @@ const formatCurrency = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-function buildEmptyMonths(): Bucket[] {
-  const now = new Date();
-  return Array.from({ length: 6 }).map((_, i) => {
-    const d = startOfMonth(subMonths(now, 5 - i));
-    return {
-      key: format(d, "yyyy-MM"),
-      label: format(d, "MMM", { locale: es }),
-      revenue: 0,
-      appointments: 0,
-    };
-  });
+interface Props {
+  period: DashboardPeriod;
 }
 
-function buildEmptyWeeks(): Bucket[] {
-  const now = new Date();
-  return Array.from({ length: 8 }).map((_, i) => {
-    const d = startOfWeek(subWeeks(now, 7 - i), { weekStartsOn: 1 });
-    return {
-      key: format(d, "yyyy-'W'II"),
-      label: format(d, "d MMM", { locale: es }),
-      revenue: 0,
-      appointments: 0,
-    };
-  });
-}
+export default function BusinessTrends({ period }: Props) {
+  const { granularity } = getPeriodRange(period);
 
-export default function BusinessTrends() {
-  const [granularity, setGranularity] = useState<Granularity>("month");
+  // Anchor the trend window at the period's reference date (selected month or week).
+  const anchor = period.date;
+
+  function buildBuckets(): Bucket[] {
+    if (granularity === "month") {
+      const baseMonth = startOfMonth(anchor);
+      return Array.from({ length: 6 }).map((_, i) => {
+        const d = subMonths(baseMonth, 5 - i);
+        return {
+          key: format(d, "yyyy-MM"),
+          label: format(d, "MMM", { locale: es }),
+          revenue: 0,
+          appointments: 0,
+        };
+      });
+    }
+    const baseWeek = startOfWeek(anchor, { weekStartsOn: 1 });
+    return Array.from({ length: 8 }).map((_, i) => {
+      const d = subWeeks(baseWeek, 7 - i);
+      return {
+        key: format(d, "yyyy-'W'II"),
+        label: format(d, "d MMM", { locale: es }),
+        revenue: 0,
+        appointments: 0,
+      };
+    });
+  }
 
   const rangeStart =
     granularity === "month"
-      ? startOfMonth(subMonths(new Date(), 5)).toISOString()
-      : startOfWeek(subWeeks(new Date(), 7), { weekStartsOn: 1 }).toISOString();
+      ? startOfMonth(subMonths(anchor, 5)).toISOString()
+      : startOfWeek(subWeeks(anchor, 7), { weekStartsOn: 1 }).toISOString();
+  const rangeEnd =
+    granularity === "month"
+      ? endOfMonth(anchor).toISOString()
+      : endOfWeek(anchor, { weekStartsOn: 1 }).toISOString();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["business-trends", granularity],
+    queryKey: ["business-trends", granularity, rangeStart, rangeEnd],
     queryFn: async () => {
       const [revenueRes, apptsRes] = await Promise.all([
         supabase
           .from("revenue_entries")
           .select("amount, recognized_at")
-          .gte("recognized_at", rangeStart),
+          .gte("recognized_at", rangeStart)
+          .lte("recognized_at", rangeEnd),
         supabase
           .from("appointments")
           .select("start_time, status")
           .gte("start_time", rangeStart)
+          .lte("start_time", rangeEnd)
           .neq("status", "cancelled"),
       ]);
 
       if (revenueRes.error) throw revenueRes.error;
       if (apptsRes.error) throw apptsRes.error;
 
-      const buckets = granularity === "month" ? buildEmptyMonths() : buildEmptyWeeks();
+      const buckets = buildBuckets();
       const idx = new Map(buckets.map((b, i) => [b.key, i]));
       const keyFor = (d: Date) =>
         granularity === "month"
@@ -103,31 +120,26 @@ export default function BusinessTrends() {
     },
   });
 
-  const buckets = data ?? (granularity === "month" ? buildEmptyMonths() : buildEmptyWeeks());
+  const buckets = data ?? buildBuckets();
   const totalRevenue = buckets.reduce((sum, b) => sum + b.revenue, 0);
   const totalAppts = buckets.reduce((sum, b) => sum + b.appointments, 0);
+
+  const subtitle =
+    granularity === "month" ? "Últimos 6 meses" : "Últimas 8 semanas";
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-lg font-semibold">Tendencias del negocio</h2>
-        <div className="flex items-center gap-3">
-          <p className="text-xs text-muted-foreground">
-            {granularity === "month" ? "Últimos 6 meses" : "Últimas 8 semanas"}
-          </p>
-          <Tabs value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
-            <TabsList className="h-8">
-              <TabsTrigger value="week" className="text-xs h-6">Semana</TabsTrigger>
-              <TabsTrigger value="month" className="text-xs h-6">Mes</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-card border rounded-lg p-5">
           <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold">Ingresos por {granularity === "month" ? "mes" : "semana"}</h3>
+            <h3 className="text-sm font-semibold">
+              Ingresos por {granularity === "month" ? "mes" : "semana"}
+            </h3>
             <span className="text-sm font-bold tabular-nums">{formatCurrency(totalRevenue)}</span>
           </div>
           <div className="h-56">
@@ -157,7 +169,9 @@ export default function BusinessTrends() {
 
         <div className="bg-card border rounded-lg p-5">
           <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold">Citas por {granularity === "month" ? "mes" : "semana"}</h3>
+            <h3 className="text-sm font-semibold">
+              Citas por {granularity === "month" ? "mes" : "semana"}
+            </h3>
             <span className="text-sm font-bold tabular-nums">{totalAppts} citas</span>
           </div>
           <div className="h-56">
